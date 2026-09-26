@@ -136,6 +136,10 @@ cancellation rule).
 - **Zapier / Make / n8n**: none has an official IntakeQ app; they all end up calling the
   same REST endpoints above, so they do not unlock anything extra.
 
+## Related findings
+
+- [GoHighLevel task -> IntakeQ task feasibility](docs/ghl-to-intakeq-tasks.md): IntakeQ has no Tasks API; options ranked.
+
 ## Sources
 
 - IntakeQ API index: https://support.intakeq.com/category/560-api
