@@ -9,7 +9,7 @@
 | `n8n/intakeq-package-nightly-reconciliation.json` | n8n, 03:00 ET | Pulls cockpit repo, runs the nightly job, commits ledger files |
 | `n8n/push_workflows.py` | anywhere with `N8N_API_KEY` | Creates/updates both workflows **inactive** via the n8n public API |
 
-## Storage (agreed location)
+## Storage (approved by the practice owner, 2026-09-26)
 
 Inside the cockpit repo, written by the nightly job:
 
