@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Optional
 
 APPOINTMENT_EVENTS = {
     "AppointmentCreated", "AppointmentConfirmed", "AppointmentRescheduled",
-    "AppointmentCanceled", "AppointmentDeclined", "AppointmentMissed",
+    "AppointmentCanceled", "AppointmentDeclined", "AppointmentMissed", "AppointmentDeleted",
 }
 INVOICE_EVENTS = {
     "InvoiceIssued", "InvoicePaid", "InvoicePaymentPlanChargeFailed",
@@ -42,6 +42,8 @@ def classify(payload: Dict[str, Any], package_names: Optional[set] = None) -> Op
             "appointment_id": appt.get("Id"),
             "status": appt.get("Status"),
             "start": appt.get("StartDateIso"),
+            "invoice_id": appt.get("InvoiceId"),
+            "invoice_number": appt.get("InvoiceNumber"),
             "by_client": payload.get("ActionPerformedByClient"),
         }
     if et in INVOICE_EVENTS:

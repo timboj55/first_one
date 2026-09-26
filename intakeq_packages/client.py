@@ -140,10 +140,14 @@ class IntakeQClient:
         end_date: Optional[str] = None,
         status: Optional[str] = None,
         practitioner_email: Optional[str] = None,
-        last_update_start_date: Optional[str] = None,
-        last_update_end_date: Optional[str] = None,
+        number: Optional[int] = None,
+        last_updated_start_date: Optional[str] = None,
+        last_updated_end_date: Optional[str] = None,
     ) -> Iterator[Dict[str, Any]]:
-        """GET /invoices. Package purchases show up as line items whose Description names the package."""
+        """GET /invoices. Package purchases show up as line items whose Description names the package.
+
+        Parameter names follow the official Invoice API page (lastUpdatedStartDate / lastUpdatedEndDate).
+        """
         return self._paged(
             "invoices",
             {
@@ -152,8 +156,9 @@ class IntakeQClient:
                 "endDate": end_date,
                 "status": status,
                 "practitionerEmail": practitioner_email,
-                "lastUpdateStartDate": last_update_start_date,
-                "lastUpdateEndDate": last_update_end_date,
+                "number": number,
+                "lastUpdatedStartDate": last_updated_start_date,
+                "lastUpdatedEndDate": last_updated_end_date,
             },
         )
 
@@ -163,6 +168,7 @@ class IntakeQClient:
     # ---- clients -----------------------------------------------------------------------
 
     def clients(self, search: Optional[str] = None, include_profile: bool = False) -> Iterator[Dict[str, Any]]:
+        """GET /clients. With include_profile the row carries CreditBalance, CustomFields, Tags, etc. No package fields."""
         return self._paged("clients", {"search": search, "includeProfile": "true" if include_profile else None})
 
     def add_client_tag(self, client_id: int, tag: str) -> Any:

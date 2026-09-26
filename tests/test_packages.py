@@ -35,13 +35,13 @@ class LedgerTests(unittest.TestCase):
         appts = [
             appt("a1", "pkg-1", "6 Session Package", "Confirmed", ts(2026, 8, 1), created=ts(2026, 7, 30)),
             appt("a2", "pkg-1", "6 Session Package", "Missed", ts(2026, 8, 8)),
-            appt("a3", "pkg-1", "6 Session Package", "Canceled", ts(2026, 8, 15)),      # not counted
+            appt("a3", "pkg-1", "6 Session Package", "Canceled", ts(2026, 8, 15)),      # consumed (not replenished)
             appt("a4", "pkg-1", "6 Session Package", "Confirmed", ts(2026, 10, 1)),     # future -> scheduled
             appt("a5", "pkg-1", "6 Session Package", "WaitingConfirmation", ts(2026, 10, 8)),
             appt("x1", None, None, "Confirmed", ts(2026, 8, 1)),                        # not a package appt
         ]
         [l] = build_ledger(appts, CONFIG, today=TODAY)
-        self.assertEqual((l.used, l.scheduled, l.remaining), (2, 2, 2))
+        self.assertEqual((l.used, l.scheduled, l.remaining), (3, 2, 1))
         self.assertEqual(l.status, "active")
         self.assertEqual(l.purchase_date, "2026-07-30")
         self.assertEqual(l.expires_on, "2026-10-28")
@@ -60,6 +60,28 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(l.purchase_amount, 540.0)
         self.assertEqual(l.purchase_date, "2026-07-20")
         self.assertEqual(l.expires_on, "2026-10-18")
+
+    def test_canceled_not_counted_when_config_says_so(self):
+        cfg = PackageConfig.from_dict({"packages": {"6 Session Package": {"sessions": 6}},
+                                       "count_as_used": ["Confirmed", "Missed"]})
+        appts = [appt("a1", "pkg-1", "6 Session Package", "Confirmed", ts(2026, 8, 1)),
+                 appt("a2", "pkg-1", "6 Session Package", "Canceled", ts(2026, 8, 8))]
+        [l] = build_ledger(appts, cfg, today=TODAY)
+        self.assertEqual((l.used, l.remaining), (1, 5))
+
+    def test_linked_invoice_id_wins_over_description_match(self):
+        a = appt("a1", "pkg-1", "6 Session Package", "Confirmed", ts(2026, 8, 1), created=ts(2026, 7, 30))
+        a["InvoiceId"] = "inv-linked"
+        invoices = [
+            {"Number": 200, "Id": "inv-desc", "ClientIdNumber": 42, "Status": "Paid", "IssuedDate": ts(2026, 7, 20),
+             "Items": [{"Description": "6 Session Package", "TotalAmount": 540.0}]},
+            {"Number": 201, "Id": "inv-linked", "ClientIdNumber": 42, "Status": "Paid", "IssuedDate": ts(2026, 7, 29),
+             "TotalAmount": 500.0, "Items": [{"Description": "Prepaid bundle", "TotalAmount": 500.0}]},
+        ]
+        [l] = build_ledger([a], CONFIG, invoices, today=TODAY)
+        self.assertEqual(l.purchase_invoice_number, 201)
+        self.assertEqual(l.purchase_amount, 500.0)
+        self.assertEqual(l.purchase_date, "2026-07-29")
 
     def test_expired_and_exhausted_and_unknown(self):
         old = [appt(f"a{i}", "pkg-old", "6 Session Package", "Confirmed", ts(2026, 1, i + 1)) for i in range(3)]
@@ -83,6 +105,8 @@ class WebhookTests(unittest.TestCase):
                         "Appointment": appt("a1", "pkg-1", "6 Session Package", "Confirmed", ts(2026, 10, 1))})
         self.assertEqual(evt["kind"], "package_appointment")
         self.assertEqual(evt["package_instance_id"], "pkg-1")
+        self.assertIsNotNone(classify({"EventType": "AppointmentDeleted",
+                                       "Appointment": appt("a1", "pkg-1", "6 Session Package", "Canceled", 0)}))
 
     def test_non_package_appointment_ignored(self):
         self.assertIsNone(classify({"EventType": "AppointmentCreated", "Appointment": appt("a1", None, None, "Confirmed", 0)}))
