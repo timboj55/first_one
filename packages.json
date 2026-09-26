@@ -1,0 +1,18 @@
+{
+  "_comment": "Default session counts per package NAME. These are fallbacks only: the per-purchase session count must come from the PracticeQ Packages export (54 of 1,137 packages carry a count different from their name). Expiry runs from purchase date; valid_days null = no expiry.",
+  "packages": {
+    "20-Visit Package":                   {"sessions": 20, "valid_days": 364, "expiry_basis": "booking"},
+    "12-Visit Package":                   {"sessions": 12, "valid_days": 364, "expiry_basis": "booking"},
+    "8-Visit Package":                    {"sessions": 8,  "valid_days": 364, "expiry_basis": "booking"},
+    "Custom":                             {"sessions": 10, "valid_days": 364, "expiry_basis": "booking"},
+    "4-visit Extension":                  {"sessions": 4,  "valid_days": null},
+    "2-visit Progression Plan":           {"sessions": 2,  "valid_days": null},
+    "Quarterly Check-in w/ Programming":  {"sessions": 1,  "valid_days": null},
+    "1-visit Maintenance Plan":           {"sessions": 1,  "valid_days": null},
+    "Complimentary Visit":                {"sessions": 1,  "valid_days": null},
+    "3-months":                           {"sessions": 16, "valid_days": 95},
+    "2-months":                           {"sessions": 12, "valid_days": null}
+  },
+  "count_as_used": ["Confirmed", "Missed", "Canceled"],
+  "count_as_scheduled": ["Confirmed", "WaitingConfirmation"]
+}

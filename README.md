@@ -59,6 +59,29 @@ appointments, which is exactly why the definition mirror in step 1 is required. 
 sell packages with flexible session counts, the invoice `Units` field is the next best
 signal.
 
+## Cockpit integration requirements (from the practice owner, 2026-09-26)
+
+- **Session counts come from each purchase, not the package name.** The PracticeQ Packages
+  export (`data/packages_all.csv` in the cockpit repo) is the source of truth for a package
+  instance's total; `packages.json` holds name-level defaults only as a fallback.
+- **Cancellations and no-shows count as consumed only while still linked to the package.**
+  Released cancellations lose their `AppointmentPackageId` and drop out of the ledger on
+  their own; charged ones keep it and count. This is what `count_as_used` including
+  `Canceled` and `Missed` implements. Since Jan 2025: 77 of 845 cancellations and 21 of 36
+  no-shows stayed linked.
+- **Output is a CSV with the same columns as the PracticeQ Packages export**, so the cockpit
+  can diff it against the current file before adopting it. PracticeQ's own `UnusedSessions`
+  is never overwritten: it counts bookings and feeds the cockpit's Completed POC logic.
+- **The cockpit already maintains `data/appt_packages.json`** (appointment to package, 20k
+  rows, topped up nightly). Reuse it rather than re-pulling history.
+- **Per-appointment package fields may only be on `GET /appointments/{id}`**, not the list
+  endpoint or the webhook payload. To be confirmed on the live run; if true, the webhook
+  handler and the nightly job must fetch each changed appointment individually.
+- **Real time via self-hosted n8n** with a secret-protected webhook URL, plus a nightly
+  reconciliation pull finishing before 4:00am ET. The tenant's API limit is 20 requests per
+  minute, shared with the cockpit refresh at 4:06am ET. Any new n8n workflow needs the
+  owner's approval before activation, and the ledger's storage location is agreed first.
+
 ## This implementation
 
 ```
