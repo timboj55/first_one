@@ -86,19 +86,33 @@ signal.
 
 ```
 intakeq_packages/
-  client.py    throttled, paginated, retrying client for /appointments, /invoices, /clients, /clientTags
-  packages.py  build_ledger(appointments, config, invoices) -> per-package-instance ledger
-  cli.py       python -m intakeq_packages report --config packages.json --since 2026-01-01 --out out/
-  webhook.py   stdlib HTTP receiver that normalises appointment/invoice events into package events
-tests/         unit tests on synthetic API payloads (python -m unittest discover -s tests)
-packages.example.json  copy to packages.json and fill in your real package names
-.env.example           INTAKEQ_API_KEY, INTAKEQ_MIN_SECONDS_BETWEEN_CALLS
+  client.py         throttled, paginated, retrying client for /appointments, /invoices, /clients, /clientTags
+  packages.py       build_ledger(appointments, config, invoices) -> per-package-instance ledger
+  sources.py        tolerant loaders for the cockpit's packages_all.csv and appt_packages.json
+  ledger_export.py  export-compatible packages_ledger.csv + packages_ledger_derived.csv sidecar
+  nightly.py        incremental reconciliation with pacing, call budget and 03:55 ET hard stop
+  webhook.py        receiver: secret URL path, enrich thin payloads via GET /appointments/{id}
+  cli.py            report | ledger | nightly | inspect | settings
+n8n/
+  intakeq-package-webhook-receiver.json        importable draft (inactive)
+  intakeq-package-nightly-reconciliation.json  importable draft (inactive)
+  push_workflows.py                            create/update both via the n8n public API, inactive
+docs/RUNBOOK.md   setup, storage, budgets, approval steps
+tests/            19 unit tests on synthetic payloads (python -m unittest discover -s tests)
+packages.json     the practice's package defaults (fallback; per-purchase totals come from the export)
 ```
 
-Quick start:
+Offline, with the cockpit files present:
 
 ```bash
-cp .env.example .env && cp packages.example.json packages.json   # edit both
+python3 -m intakeq_packages inspect --export data/packages_all.csv --appt-map data/appt_packages.json
+python3 -m intakeq_packages ledger --appt-map data/appt_packages.json --export data/packages_all.csv --out data
+```
+
+Quick start (ad-hoc API pull):
+
+```bash
+cp .env.example .env                                             # set INTAKEQ_API_KEY
 export $(grep -v '^#' .env | xargs)
 python -m intakeq_packages settings                              # sanity-check the key
 python -m intakeq_packages report --since 2026-01-01 --out out   # writes out/packages.{json,csv}

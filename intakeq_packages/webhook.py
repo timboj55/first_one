@@ -68,14 +68,41 @@ def classify(payload: Dict[str, Any], package_names: Optional[set] = None) -> Op
     return None
 
 
-def make_handler(on_event: Callable[[Dict[str, Any]], None], package_names: Optional[set] = None):
+def needs_enrichment(payload: Dict[str, Any]) -> bool:
+    """True when an appointment event arrived without the package fields (the owner reports the
+    webhook payload may omit them); the receiver should then GET /appointments/{id}."""
+    if payload.get("EventType") not in APPOINTMENT_EVENTS:
+        return False
+    appt = payload.get("Appointment") or {}
+    return "AppointmentPackageId" not in appt and bool(appt.get("Id"))
+
+
+def enrich(payload: Dict[str, Any], fetch_appointment: Callable[[str], Dict[str, Any]]) -> Dict[str, Any]:
+    """Replace payload['Appointment'] with the full single-appointment object when needed."""
+    if needs_enrichment(payload):
+        full = fetch_appointment(str(payload["Appointment"]["Id"]))
+        return {**payload, "Appointment": full}
+    return payload
+
+
+def make_handler(on_event: Callable[[Dict[str, Any]], None], package_names: Optional[set] = None,
+                 secret_path: Optional[str] = None, fetch_appointment: Optional[Callable[[str], Dict[str, Any]]] = None):
+    """secret_path: IntakeQ cannot send custom headers, so the shared secret lives in the URL path.
+    Requests whose path does not end with it are rejected with 404."""
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):  # noqa: N802
+            if secret_path and not self.path.rstrip("/").endswith(secret_path):
+                self.send_response(404); self.end_headers(); return
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 payload = json.loads(self.rfile.read(length) or b"{}")
             except json.JSONDecodeError:
                 self.send_response(400); self.end_headers(); return
+            if fetch_appointment:
+                try:
+                    payload = enrich(payload, fetch_appointment)
+                except Exception:  # noqa: BLE001  keep acknowledging; nightly job reconciles
+                    pass
             evt = classify(payload, package_names)
             if evt:
                 on_event(evt)
@@ -86,8 +113,9 @@ def make_handler(on_event: Callable[[Dict[str, Any]], None], package_names: Opti
     return Handler
 
 
-def serve(port: int, on_event: Callable[[Dict[str, Any]], None], package_names: Optional[set] = None) -> None:
-    HTTPServer(("0.0.0.0", port), make_handler(on_event, package_names)).serve_forever()
+def serve(port: int, on_event: Callable[[Dict[str, Any]], None], package_names: Optional[set] = None,
+          secret_path: Optional[str] = None, fetch_appointment: Optional[Callable[[str], Dict[str, Any]]] = None) -> None:
+    HTTPServer(("0.0.0.0", port), make_handler(on_event, package_names, secret_path, fetch_appointment)).serve_forever()
 
 
 if __name__ == "__main__":
