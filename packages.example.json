@@ -1,0 +1,9 @@
+{
+  "_comment": "Mirror of the package definitions configured in PracticeQ (Bookings > Booking Settings > Services > Packages). Keys must match the exact package Name, which comes back as AppointmentPackageName on appointments and appears in invoice line-item Descriptions. valid_days null = no expiry. expiry_basis is 'booking' or 'appointment' to match the package's Expiration Window setting.",
+  "packages": {
+    "6 Session Package": {"sessions": 6, "valid_days": 90, "expiry_basis": "booking"},
+    "10 Session Package": {"sessions": 10, "valid_days": 180, "expiry_basis": "appointment"}
+  },
+  "count_as_used": ["Confirmed", "Missed"],
+  "count_as_scheduled": ["Confirmed", "WaitingConfirmation"]
+}
