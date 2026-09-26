@@ -64,6 +64,14 @@ supported interfaces. Workarounds exist, ranked below.
    Drawbacks: the task text is fixed in the template, so the GHL title/body cannot flow
    into the task; a canceled placeholder appointment remains on the client record and in
    reports; it burns two of the tenant's 20 requests/minute per task.
+   Variant ruled out: a placeholder **note** instead of an appointment. Process Templates
+   do accept a note-based trigger (the automation form's third condition can be Notes), but
+   the Notes API is read-only (query summary, PDF, full note, plus the outbound Note Locked
+   webhook), so a note cannot be created, locked or deleted through the API. Appointments
+   are the only API-writable object that fires a Process trigger. Untested edge: the
+   Questionnaire API can update office-use questions on an existing intake; if form rules
+   re-evaluate on that update, a hidden office-use question could fire a Process. The docs
+   do not say rules run on API updates.
 5. **Browser automation** (Playwright logged in as a staff user filling the New Task
    form). Carries every field, but is cookie-session based, breaks on UI changes and MFA,
    and is not something to run a PHI-handling production pipeline on. Fallback only.
