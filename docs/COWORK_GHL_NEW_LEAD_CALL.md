@@ -18,6 +18,9 @@ ask me.
   rings) and whether call recording is on. Do not change anything.
 - Settings > My Staff: for each user, record whether a phone number is set under
   Call & Voicemail settings. Do not change anything.
+- (864) 558-7346 is our LC Phone number. It places the call, but the call has to ring a real phone
+  (the forwarding number above or a user's phone). If neither is set, stop and ask me which phone
+  should ring before building anything.
 
 ## 2. Pick the pipeline
 - Opportunities > Pipelines: list the pipeline names and each one's first stage.
