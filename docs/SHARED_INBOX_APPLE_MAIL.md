@@ -93,11 +93,32 @@ Send a test email to the group address. It should appear in the Team Inbox on ev
 Delete it on one Mac; within a minute it should leave every other Inbox and sit in the Team
 Inbox's Trash.
 
+## Sizing for a 5-person team
+
+Gmail allows 15 IMAP connections to the shared account at once. Rough budget:
+
+| Device | Connections it holds while Mail is open |
+|---|---|
+| Apple Mail on a Mac | 2 to 5 (one per mailbox being synced, more during a big fetch) |
+| iOS Mail on iPhone/iPad (Fetch) | 1 to 2, only while fetching |
+| iOS Mail set to Push or Manual | 2 to 3, held longer |
+
+Plan that works for 5 people:
+- **All 5 Macs** on the shared account: about 10 to 12 connections at peak. Fine.
+- **Phones: add the shared account only for the 1 or 2 people who cover it away from a desk**,
+  and set them to Fetch every 15 minutes (Settings > Mail > Accounts > Fetch New Data).
+- Do not add the shared account to Gmail web on a sixth device permanently, and do not connect
+  any other IMAP tool (backup apps, CRM mail sync) to it.
+
+If a sixth person joins, or everyone wants it on their phone, you will start to see
+"Too many simultaneous connections". At that point the fix is to trim devices or move to a
+shared-inbox product; Gmail does not let you raise the limit.
+
 ## Limits to know about
 
 - **15 simultaneous IMAP connections per Gmail account.** Apple Mail on a Mac holds several
   connections per account, and iOS Mail adds more. In practice the shared mailbox works
-  comfortably for **about 4 to 5 people each with a Mac and a phone**. Beyond that you will see
+  comfortably for **about 4 to 5 people on Macs, with phones for one or two of them** (see the sizing section above). Beyond that you will see
   "Too many simultaneous connections" and the account intermittently stops syncing. Mitigations:
   add the shared account only on the devices that need it, and on iPhone set Settings > Mail >
   Accounts > Fetch New Data > Team Inbox to **Fetch** every 15 or 30 minutes rather than
