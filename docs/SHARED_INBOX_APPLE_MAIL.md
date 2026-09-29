@@ -105,13 +105,13 @@ Gmail allows 15 IMAP connections to the shared account at once. Rough budget:
 
 Plan that works for 4 people:
 - **All 4 Macs** on the shared account: about 8 to 10 connections at peak. Fine.
-- **Phones for all 4 are workable** if every phone is set to Fetch every 15 minutes
+- **The iPhone Mail app for all 4 is workable** (this is just Apple Mail on the phone, no Google Voice or phone system involved) if every phone is set to Fetch every 15 minutes
   (Settings > Mail > Accounts > Fetch New Data), which adds roughly 4 to 6 short-lived
   connections. Push or Manual on the phones is what tips a team this size over the limit.
 - Do not add the shared account to Gmail web on a sixth device permanently, and do not connect
   any other IMAP tool (backup apps, CRM mail sync) to it.
 
-If the team grows past 5, or phones are left on Push, you will start to see
+If the team grows past 5, or iPhone Mail is left on Push, you will start to see
 "Too many simultaneous connections". At that point the fix is to trim devices or move to a
 shared-inbox product; Gmail does not let you raise the limit.
 
