@@ -23,41 +23,44 @@ URL is supported, so fan out from your own receiver.
 
 | Resource | Endpoints | Package-relevant data |
 |---|---|---|
-| Appointments | `GET /appointments` (filters: `client`, `startDate`, `endDate`, `status`, `practitionerEmail`, `updatedSince`, `deletedOnly`, `page`), `GET /appointments/{id}`, `POST/PUT /appointments`, `POST /appointments/cancellation`, `GET /appointments/settings` | **`AppointmentPackageId`** (unique per purchased package instance) and **`AppointmentPackageName`** on every appointment, plus `ClientId`, `Status`, `StartDate`, `DateCreated`, `Price`, **`InvoiceId` / `InvoiceNumber`** (the invoice the appointment was billed on, which for prepaid package appointments is the package sale), `FullCancellationReason`, `CancellationDate`, `LastModified` |
+| Appointments | `GET /appointments` (filters: `client`, `startDate`, `endDate`, `status`, `practitionerEmail`, `updatedSince`, `deletedOnly`, `page`), `GET /appointments/{id}`, `POST/PUT /appointments`, `POST /appointments/cancellation`, `GET /appointments/settings` | **`AppointmentPackageId`** and **`AppointmentPackageName`** are present on `GET /appointments/{id}` only; the list endpoint returns no package fields (measured live on this tenant: 44 fields on the list, 49 on the single). **The id is the package *type*, not the purchase**: 19 distinct ids across 20,210 appointments, none matching a purchase id in the PracticeQ export, and one id carries several names after a rename. Also `InvoiceId` / `InvoiceNumber`, `FullCancellationReason`, `CancellationDate`, `LastModified` |
 | Invoices | `GET /invoices` (filters: `clientId`, `startDate`, `endDate`, `status`, `practitionerEmail`, `number`, `lastUpdatedStartDate`, `lastUpdatedEndDate`, `page`), `GET /invoices/{id}` | Line `Items[]` with `Description`, `Price`, `Units`, `TotalAmount`, `ProductId`, `AppointmentId`; `Status`, `IssuedDate`, `Payments[]`, `ClientPaymentPlanId` (set when the package is on a recurring payment plan). A package sale is a line item whose Description names the package. |
 | Clients | `GET /clients` (`search`, `includeProfile`, `page`), `POST /clients`, `POST/DELETE /clientTags`, `GET /client/{id}/diagnoses` | No package fields. `CreditBalance` is exposed. Tags are useful as an *output*: tag clients "package-1-left" and let PracticeQ automations act on it. |
 | Intakes, Notes, Files, Claims, Practitioners, Questionnaires | documented separately | nothing package related |
 | Webhooks (same settings page) | `AppointmentCreated/Confirmed/Rescheduled/Canceled/Declined/Missed/Deleted`, `InvoiceIssued/Paid/Cancelled/PaymentRefunded/PaymentPlanChargeFailed/AutoChargeFailed`, intake submitted, note locked | Appointment events carry the **full appointment object including the package fields**; invoice events carry the full invoice. This is the real-time path. |
 | Booking widget JS | `intakeqPackageSignUp` DOM event | fires in the browser when a visitor buys a package; front-end only |
 
-What is **not** exposed anywhere: the package *definitions* (sessions per package, price,
-expiry window), per-client expiry overrides made on the Package List page, and PracticeQ's
-own "sessions remaining" counter that drives its Package Sessions About to End email.
-`GET /appointments/settings` returns Services, Locations and Practitioners only.
+What is **not** exposed anywhere: the **purchase** itself (the export's `Id`), sessions sold
+on that purchase (`TotalSessions`, wrong by name on 54 of 1,137 packages), PracticeQ's own
+`UsedSessions` / `UnusedSessions` counters, and the purchase `Status`. Package definitions and
+per-client expiry overrides are also UI-only. `GET /appointments/settings` returns Services,
+Locations and Practitioners only. `GET /packages` and `GET /client-packages` return 404.
 
-## How to get to 100% automation anyway
+## What can and cannot be automated (reconciled with the cockpit, 2026-09-30)
 
-1. **Mirror the package definitions once** in `packages.json` (name -> sessions, validity).
-   They change rarely and only you change them.
-2. **Group appointments by `AppointmentPackageId`.** Each id is one purchased package
-   instance. Past `Confirmed` + `Missed` = used; future `Confirmed` / `WaitingConfirmation` =
-   scheduled; `Declined` is free. **`Canceled` counts as used**: PracticeQ's own docs say a
-   canceled package appointment is not replenished unless staff add the slot back. If your
-   staff always re-add slots, drop `Canceled` from `count_as_used` in `packages.json`.
-   `remaining = sessions - used - scheduled`.
-3. **Join the sale from invoices.** First choice is the `InvoiceId` on the package
-   appointments themselves; fallback is same client + line-item Description containing the
-   package name, closest issue date before the first booking. That gives purchase date,
-   invoice number and amount. Expiry = purchase date + validity days.
-4. **Keep it live with webhooks.** Every package booking, cancellation, no-show and sale
-   arrives as a POST within seconds, so the ledger never needs a full re-pull. Use the
-   nightly `report` run only as reconciliation.
-5. **Write results back** as client tags or into your cockpit's datastore.
+Automated already, by the cockpit: per-purchase usage, inferred by assigning each charged
+appointment (from `GET /appointments/{id}`) to the same client's oldest purchase of that
+package type with sessions left, plus the ledger built from that and the export.
 
-Caveat on step 2: sessions a client bought but has not yet scheduled do not exist as
-appointments, which is exactly why the definition mirror in step 1 is required. If you
-sell packages with flexible session counts, the invoice `Units` field is the next best
-signal.
+Not automatable through the API: the PracticeQ Packages export (`data/packages_all.csv`),
+because the purchase record, its sold-session count, PracticeQ's used/unused counters and
+its cancellation status exist only there. The export is a rolling 2,000-row window, so it
+must be merged, never copied. Today it is downloaded by hand and merged with
+`scripts/merge_packages.py`; the nightly refresh prints STALE when a package charged in the
+last 30 days is missing.
+
+Routes considered:
+
+- **Support request for a packages endpoint** (`docs/intakeq-support-request.md`): the only
+  route that removes the manual export. No cost, no timeline. Send it regardless.
+- **Provisional purchase rows from invoice lines** the night the invoice appears, with a
+  name-based session count, replaced by the real record at the next export. Narrows the
+  export to monthly housekeeping. Costs: name-based count wrong about 5% of the time, about
+  11% of purchases have no matching invoice line, and provisional rows carry no PracticeQ
+  counters so Completed POC still waits for the export. Cockpit-side change, owner's call.
+- **Headless browser download of the export at 4am**: closes the gap but needs a stored
+  PracticeQ login with full patient access, breaks silently on UI changes, and the refresh
+  now runs in Google Cloud, not on the Mac. Rejected.
 
 ## Decisions (practice owner, 2026-09-30)
 
