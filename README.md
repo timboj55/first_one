@@ -89,14 +89,15 @@ Decision (2026-09-30): no Claude cloud session has any remaining reason to call 
 n8n for this project. The cockpit holds its own PracticeQ key in Google Secret Manager
 (`cockpit-intakeq-key`) and needs nothing from the Claude Code environment.
 
-- `INTAKEQ_API_KEY` API credential in the "Default" environment: **remove it**. It was never
-  sent as `X-Auth-Key` (one read-only `GET /practitioners` returned 401), and fixing it would
-  only grant cloud chats access to patient records with no current purpose.
-- `N8N_API_KEY` API credential in the same environment: worked (one read-only workflow list
-  returned 200), but is likewise no longer needed here; remove it too unless another cloud
-  project uses it.
-- The n8n Header Auth credential "IntakeQ API (X-Auth-Key)" created during setup is unused
-  by any workflow and holds the PracticeQ key; delete it in n8n.
+Done 2026-09-30 by the owner:
+- `INTAKEQ_API_KEY` API credential removed from the "Default" environment. It was never sent
+  as `X-Auth-Key` (one read-only `GET /practitioners` returned 401).
+- `N8N_API_KEY` API credential removed (it worked: one read-only workflow list returned 200).
+- The unused n8n Header Auth credential "IntakeQ API (X-Auth-Key)" deleted in n8n.
+- `N8N_BASE_URL` environment variable and the Trusted network setting left unchanged.
+- A separate API credential named "IntakeQ/PracticeQ" remains in the environment. It predates
+  this project; whether to keep it depends on other cloud sessions (the "GHL to IntakeQ task
+  integration" session of 2026-09-26 reported being blocked on an IntakeQ credential).
 
 If a cloud project ever needs PracticeQ again: add an API credential scoped to intakeq.com
 with header name exactly `X-Auth-Key` and the bare key as value, then run

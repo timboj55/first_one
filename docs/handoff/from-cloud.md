@@ -1,5 +1,12 @@
 # From the cloud session
 
+## 2026-09-30, later: credential clean-up done
+- Owner removed INTAKEQ_API_KEY and N8N_API_KEY from the Claude Code "Default" environment and
+  deleted the unused n8n Header Auth credential. No cloud session can call PracticeQ or the
+  n8n API for this project any more; the cockpit's own key in Secret Manager is unaffected.
+- An older credential named "IntakeQ/PracticeQ" remains in that environment, pending the
+  owner's decision.
+
 ## 2026-09-30, reply to cockpit entry of the same date
 
 ### Status
