@@ -205,12 +205,11 @@ class _PDF(FPDF):
             self.add_page()
         label_w, val_w = 52.0, 32.0
         x0 = MARGIN + CONTENT_W - label_w - val_w
+        # Charges and payments only: amount billed / discount / balance cannot be right for
+        # payment-plan patients whose later installments are not invoiced yet.
         rows = [
             ("Total charges", money(d.total_charges), False),
-            ("Provider discount", money(-d.provider_discount) if d.provider_discount else money(0), False),
-            ("Amount billed to patient", money(d.total_billed), False),
-            ("Total payments received", money(d.total_payments), False),
-            ("Account balance", money(d.balance), True),
+            ("Payments received to date", money(d.total_payments), True),
         ]
         for lab, val, bold in rows:
             self.set_x(x0)
@@ -222,12 +221,6 @@ class _PDF(FPDF):
             else:
                 self.cell(label_w, 5.6, lab, new_x=XPos.RIGHT, new_y=YPos.TOP)
                 self.cell(val_w, 5.6, val, align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        if d.payment_plan:
-            self.set_x(x0)
-            self.set_font("Helvetica", "I", 8.5)
-            self.set_text_color(*MUTED)
-            self.cell(label_w + val_w, 5, _latin(f"Payment plan: {d.installments_billed} installment(s) invoiced to date"), align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            self.set_text_color(*INK)
         self.ln(4)
 
     def statement(self) -> None:
