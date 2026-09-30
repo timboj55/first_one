@@ -85,22 +85,23 @@ tests/                       4 unit tests (python -m unittest discover -s tests)
 
 ## Credentials in the Claude Code environment
 
-Both keys are stored as **API credentials** in the "Default" cloud environment, not as shell
-variables. The egress proxy injects them into requests for their scoped hosts, so code sends no
-auth header itself:
+Decision (2026-09-30): no Claude cloud session has any remaining reason to call PracticeQ or
+n8n for this project. The cockpit holds its own PracticeQ key in Google Secret Manager
+(`cockpit-intakeq-key`) and needs nothing from the Claude Code environment.
 
-| Credential | Scoped host(s) | Header the API needs | Status (2026-09-30) |
-|---|---|---|---|
-| `N8N_API_KEY` | n8n.movementsolutions-sc.com | `X-N8N-API-KEY: <key>` | working: `GET /api/v1/workflows` returns 200 |
-| `INTAKEQ_API_KEY` | intakeq.com, support.intakeq.com | `X-Auth-Key: <key>` | **not working**: `GET /api/v1/practitioners` returns 401 |
+- `INTAKEQ_API_KEY` API credential in the "Default" environment: **remove it**. It was never
+  sent as `X-Auth-Key` (one read-only `GET /practitioners` returned 401), and fixing it would
+  only grant cloud chats access to patient records with no current purpose.
+- `N8N_API_KEY` API credential in the same environment: worked (one read-only workflow list
+  returned 200), but is likewise no longer needed here; remove it too unless another cloud
+  project uses it.
+- The n8n Header Auth credential "IntakeQ API (X-Auth-Key)" created during setup is unused
+  by any workflow and holds the PracticeQ key; delete it in n8n.
 
-The 401 means the IntakeQ credential is not being sent as `X-Auth-Key` (a default such as
-`Authorization: Bearer` will not authenticate against IntakeQ). Fix: edit the credential in the
-environment so the header name is exactly `X-Auth-Key` with the bare key as value, no prefix.
-Then `python -m intakeq_packages verify` makes one `GET /practitioners` and reports the status.
-
-`IntakeQClient` also accepts an `INTAKEQ_API_KEY` environment variable and sends the header
-itself when one is present, for use outside this environment.
+If a cloud project ever needs PracticeQ again: add an API credential scoped to intakeq.com
+with header name exactly `X-Auth-Key` and the bare key as value, then run
+`python -m intakeq_packages verify` (one read-only call). `IntakeQClient` also accepts an
+`INTAKEQ_API_KEY` environment variable and sends the header itself, for use elsewhere.
 
 ## Tenant facts
 
