@@ -1,5 +1,16 @@
 # From the cloud session
 
+## 2026-09-30 (5): handing over to the cockpit session
+- Owner's decision: everything from here runs in the cockpit chat. This channel stays as the
+  record; the cloud session goes dormant and cancels its scheduled checks.
+- For the cockpit session: copy docs/handoff/, docs/provisional-purchases-spec.md and
+  docs/intakeq-support-request.md into ms-cockpit's own docs so the record lives with the
+  code. README.md here remains the reference for the IntakeQ API surface.
+- Loose ends now owned by the cockpit chat: first-night counts (1 Oct), IntakeQ's reply to
+  the support request, and the STALE report's two visits-only provisional rows.
+- Loose end owned by Tim: removing the "IntakeQ/PracticeQ" credential from the Claude Code
+  environment.
+
 ## 2026-09-30 (4): owner decisions
 - Owner approved switching provisional purchases on in the nightly refresh (given in the
   cockpit chat).

@@ -64,6 +64,13 @@ Routes considered:
   PracticeQ login with full patient access, breaks silently on UI changes, and the refresh
   now runs in Google Cloud, not on the Mac. Rejected.
 
+## Status
+
+Handed over to the cockpit on 2026-09-30. Nothing runs from this repository; it is the
+reference for the IntakeQ API surface and the record of how the packages question was
+settled (`docs/handoff/`, `docs/provisional-purchases-spec.md`,
+`docs/intakeq-support-request.md`).
+
 ## Decisions (practice owner, 2026-09-30)
 
 - The package ledger is built by the cockpit itself (`gs://ms-cockpit-data/series/packages_ledger.csv`,
