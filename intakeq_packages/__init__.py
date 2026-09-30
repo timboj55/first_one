@@ -1,12 +1,11 @@
-"""Reconstruct PracticeQ / IntakeQ appointment-package balances from the public API.
+"""Read-only helpers for the PracticeQ / IntakeQ REST API (https://intakeq.com/api/v1).
 
-IntakeQ has no /packages endpoint. Package membership is exposed on every appointment
-(AppointmentPackageId / AppointmentPackageName) and package purchases appear as invoice
-line items, so balances are rebuilt from those two feeds plus a local mirror of the
-package definitions. See README.md.
+Research outcome: IntakeQ has no /packages endpoint. Package membership is exposed per
+appointment (AppointmentPackageId / AppointmentPackageName) and package sales as invoice line
+items. The practice's cockpit already builds the package ledger from its own data, so this
+package only documents the API surface and provides a verified, throttled client.
 """
 
 from .client import IntakeQClient, IntakeQError
-from .packages import PackageConfig, PackageLedger, build_ledger
 
-__all__ = ["IntakeQClient", "IntakeQError", "PackageConfig", "PackageLedger", "build_ledger"]
+__all__ = ["IntakeQClient", "IntakeQError"]

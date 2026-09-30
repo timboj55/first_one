@@ -1,8 +1,14 @@
 """Minimal stdlib-only client for the IntakeQ REST API (https://intakeq.com/api/v1).
 
-Auth is a single ``X-Auth-Key`` header. The standard PracticeQ plan allows 10 requests
-per minute and 500 per day, and list endpoints return at most 100 rows per page, so the
-client throttles itself and paginates for you.
+Auth is a single ``X-Auth-Key`` header. Two modes:
+  * INTAKEQ_API_KEY set in the environment: the client sends the header itself.
+  * not set: the client sends no auth header and relies on the Claude Code environment's
+    API-credential injection (the egress proxy adds X-Auth-Key for intakeq.com). This is how
+    the practice's environment is configured; the key never appears as a shell variable.
+
+Rate limits: this tenant is on 20 requests/minute. The client throttles itself (default one
+call per 6 s) and paginates 100-row list endpoints for you. Read-only helpers only; nothing
+here writes to PracticeQ.
 """
 
 from __future__ import annotations
@@ -37,9 +43,7 @@ class IntakeQClient:
         opener: Optional[Callable[[urllib.request.Request], Any]] = None,
         sleep: Callable[[float], None] = time.sleep,
     ):
-        self.api_key = api_key or os.environ.get("INTAKEQ_API_KEY")
-        if not self.api_key:
-            raise ValueError("INTAKEQ_API_KEY is not set")
+        self.api_key = api_key or os.environ.get("INTAKEQ_API_KEY")  # None => proxy-injected mode
         self.base_url = base_url.rstrip("/")
         if min_seconds_between_calls is None:
             min_seconds_between_calls = float(os.environ.get("INTAKEQ_MIN_SECONDS_BETWEEN_CALLS", "6"))
@@ -58,7 +62,9 @@ class IntakeQClient:
         if query:
             url += "?" + urllib.parse.urlencode(query)
         data = json.dumps(body).encode() if body is not None else None
-        headers = {"X-Auth-Key": self.api_key, "Accept": "application/json"}
+        headers = {"Accept": "application/json"}
+        if self.api_key:
+            headers["X-Auth-Key"] = self.api_key
         if data is not None:
             headers["Content-Type"] = "application/json"
 
@@ -131,6 +137,10 @@ class IntakeQClient:
         """GET /appointments/settings: Services, Locations, Practitioners (no packages)."""
         return self.request("GET", "appointments/settings")
 
+    def practitioners(self) -> List[Dict[str, Any]]:
+        """GET /practitioners: the smallest read-only call, used for auth verification."""
+        return self.request("GET", "practitioners") or []
+
     # ---- invoices ----------------------------------------------------------------------
 
     def invoices(
@@ -171,9 +181,3 @@ class IntakeQClient:
         """GET /clients. With include_profile the row carries CreditBalance, CustomFields, Tags, etc. No package fields."""
         return self._paged("clients", {"search": search, "includeProfile": "true" if include_profile else None})
 
-    def add_client_tag(self, client_id: int, tag: str) -> Any:
-        """POST /clientTags. Handy for flagging e.g. 'package-1-left' so PracticeQ automations can act on it."""
-        return self.request("POST", "clientTags", body={"ClientId": client_id, "Tag": tag})
-
-    def remove_client_tag(self, client_id: int, tag: str) -> Any:
-        return self.request("DELETE", "clientTags", params={"clientId": client_id, "tag": tag})

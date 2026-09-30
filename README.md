@@ -59,85 +59,56 @@ appointments, which is exactly why the definition mirror in step 1 is required. 
 sell packages with flexible session counts, the invoice `Units` field is the next best
 signal.
 
-## Cockpit integration requirements (from the practice owner, 2026-09-26)
+## Decisions (practice owner, 2026-09-30)
 
-- **Session counts come from each purchase, not the package name.** The PracticeQ Packages
-  export (`data/packages_all.csv` in the cockpit repo) is the source of truth for a package
-  instance's total; `packages.json` holds name-level defaults only as a fallback.
-- **Cancellations and no-shows count as consumed only while still linked to the package.**
-  Released cancellations lose their `AppointmentPackageId` and drop out of the ledger on
-  their own; charged ones keep it and count. This is what `count_as_used` including
-  `Canceled` and `Missed` implements. Since Jan 2025: 77 of 845 cancellations and 21 of 36
-  no-shows stayed linked.
-- **Output is a CSV with the same columns as the PracticeQ Packages export**, so the cockpit
-  can diff it against the current file before adopting it. PracticeQ's own `UnusedSessions`
-  is never overwritten: it counts bookings and feeds the cockpit's Completed POC logic.
-- **The cockpit already maintains `data/appt_packages.json`** (appointment to package, 20k
-  rows, topped up nightly). Reuse it rather than re-pulling history.
-- **Per-appointment package fields may only be on `GET /appointments/{id}`**, not the list
-  endpoint or the webhook payload. To be confirmed on the live run; if true, the webhook
-  handler and the nightly job must fetch each changed appointment individually.
-- **Real time via self-hosted n8n** with a secret-protected webhook URL, plus a nightly
-  reconciliation pull finishing before 4:00am ET. The tenant's API limit is 20 requests per
-  minute, shared with the cockpit refresh at 4:06am ET. Any new n8n workflow needs the
-  owner's approval before activation, and the ledger's storage location is agreed first.
+- The package ledger is built by the cockpit itself (`gs://ms-cockpit-data/series/packages_ledger.csv`,
+  rebuilt at 3am and when a page is more than 30 minutes stale). Session counts are **not**
+  re-derived here, and that file is not read from outside Google Cloud without approval.
+- No real-time package signal. The existing n8n workflow "IntakeQ Appointments -> GHL" owns the
+  PracticeQ appointment webhook; nothing is added to it and no receiver is built.
+- The ledger builder, nightly reconciliation, webhook receiver, n8n drafts and Cowork task that
+  were drafted earlier are superseded and removed. They remain in git history at commit
+  `db839bf` if ever needed.
+- Live use of the API from Claude Code is read-only.
 
-## This implementation
+## What remains in this repo
 
 ```
-intakeq_packages/
-  client.py         throttled, paginated, retrying client for /appointments, /invoices, /clients, /clientTags
-  packages.py       build_ledger(appointments, config, invoices) -> per-package-instance ledger
-  sources.py        tolerant loaders for the cockpit's packages_all.csv and appt_packages.json
-  ledger_export.py  export-compatible packages_ledger.csv + packages_ledger_derived.csv sidecar
-  nightly.py        incremental reconciliation with pacing, call budget and 03:55 ET hard stop
-  webhook.py        receiver: secret URL path, enrich thin payloads via GET /appointments/{id}
-  cli.py            report | ledger | nightly | inspect | settings
-n8n/
-  intakeq-package-webhook-receiver.json        importable draft (inactive)
-  intakeq-package-nightly-reconciliation.json  importable draft (inactive)
-  push_workflows.py                            create/update both via the n8n public API, inactive
-docs/RUNBOOK.md   setup, storage, budgets, approval steps
-tests/            19 unit tests on synthetic payloads (python -m unittest discover -s tests)
-packages.json     the practice's package defaults (fallback; per-purchase totals come from the export)
+intakeq_packages/client.py   throttled, paginated, retrying read-only client (appointments,
+                             invoices, clients, practitioners, booking settings)
+intakeq_packages/cli.py      python -m intakeq_packages verify | settings
+tests/                       4 unit tests (python -m unittest discover -s tests)
 ```
 
-Offline, with the cockpit files present:
+## Credentials in the Claude Code environment
 
-```bash
-python3 -m intakeq_packages inspect --export data/packages_all.csv --appt-map data/appt_packages.json
-python3 -m intakeq_packages ledger --appt-map data/appt_packages.json --export data/packages_all.csv --out data
-```
+Both keys are stored as **API credentials** in the "Default" cloud environment, not as shell
+variables. The egress proxy injects them into requests for their scoped hosts, so code sends no
+auth header itself:
 
-Quick start (ad-hoc API pull):
+| Credential | Scoped host(s) | Header the API needs | Status (2026-09-30) |
+|---|---|---|---|
+| `N8N_API_KEY` | n8n.movementsolutions-sc.com | `X-N8N-API-KEY: <key>` | working: `GET /api/v1/workflows` returns 200 |
+| `INTAKEQ_API_KEY` | intakeq.com, support.intakeq.com | `X-Auth-Key: <key>` | **not working**: `GET /api/v1/practitioners` returns 401 |
 
-```bash
-cp .env.example .env                                             # set INTAKEQ_API_KEY
-export $(grep -v '^#' .env | xargs)
-python -m intakeq_packages settings                              # sanity-check the key
-python -m intakeq_packages report --since 2026-01-01 --out out   # writes out/packages.{json,csv}
-python -m intakeq_packages.webhook 8080                          # prints normalised package events
-```
+The 401 means the IntakeQ credential is not being sent as `X-Auth-Key` (a default such as
+`Authorization: Bearer` will not authenticate against IntakeQ). Fix: edit the credential in the
+environment so the header name is exactly `X-Auth-Key` with the bare key as value, no prefix.
+Then `python -m intakeq_packages verify` makes one `GET /practitioners` and reports the status.
 
-Ledger row fields: `client_name, client_email, client_id, package_name, status
-(active|exhausted|expired|unknown-definition), sessions_total, used, scheduled, remaining,
-purchase_date, expires_on, purchase_invoice_number, purchase_amount, first_booked,
-last_appointment, package_instance_id, appointment_ids, warnings`.
+`IntakeQClient` also accepts an `INTAKEQ_API_KEY` environment variable and sends the header
+itself when one is present, for use outside this environment.
 
-Request budget: a practice with 3,000 appointments and 1,500 invoices a year is about 45
-calls for a full annual pull, well inside 500/day. Use `--since` and the `updatedSince`
-filter for incremental runs.
+## Tenant facts
 
-## Not yet run against a live account
-
-Endpoints, fields, parameter names, event types and timestamp units were checked against
-the official support articles (Appointments API updated Aug 2026, Invoice API Jun 2025,
-Rate Limits Sep 2026, Appointment Packages May 2026). The code has not yet been run against
-a real PracticeQ tenant. First live run should confirm: that prepaid package appointments
-carry the package sale's `InvoiceId`, the exact `Description` PracticeQ writes on a package
-invoice line, and whether re-added canceled slots create a new appointment while the
-canceled one keeps its `AppointmentPackageId` (which would double count under the default
-cancellation rule).
+- PracticeQ Developer API: "Enable API access" on; no IP allow-list field on the page; the
+  account is on 20 requests/minute. The appointment webhook URL points at the n8n workflow
+  "IntakeQ Appointments -> GHL" (all 8 events); intake, note and invoice webhooks go to
+  listen.partyline.to. None of these are to be changed.
+- n8n 2.20.9 self-hosted; Data Table and Read/Write Files from Disk nodes exist, Execute Command
+  does not. A Header Auth credential "IntakeQ API (X-Auth-Key)" exists in n8n and is unused.
+- The cockpit is a local folder on the owner's Mac (`ms-cockpit`), refreshed by the local Claude
+  desktop routine "Cockpit nightly refresh, 4am".
 
 ## Alternatives considered
 
