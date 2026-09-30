@@ -1,0 +1,122 @@
+{
+  "name": "PracticeQ Superbills -> client files",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 20
+            }
+          ]
+        }
+      },
+      "id": "1a0f8f2e-0001-4c1e-9a5e-000000000001",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.SUPERBILL_URL }}/sync",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "since_days", "value": "3" }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "1a0f8f2e-0002-4c1e-9a5e-000000000002",
+      "name": "Start superbill sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Superbill service (X-Superbill-Secret)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 12,
+        "unit": "minutes"
+      },
+      "id": "1a0f8f2e-0003-4c1e-9a5e-000000000003",
+      "name": "Wait for the run",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [520, 0],
+      "webhookId": "1a0f8f2e-0003-4c1e-9a5e-000000000003"
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.SUPERBILL_URL }}/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "1a0f8f2e-0004-4c1e-9a5e-000000000004",
+      "name": "Read sync result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Superbill service (X-Superbill-Secret)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ ($json.last && ($json.last.error || $json.last['error'] > 0)) ? 1 : 0 }}",
+              "rightValue": 1,
+              "operator": { "type": "number", "operation": "equals" }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "1a0f8f2e-0005-4c1e-9a5e-000000000005",
+      "name": "Any errors?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1040, 0]
+    },
+    {
+      "parameters": {
+        "content": "## Superbill sync\n\nHourly: POST /sync on the superbill service (superbill/ in the first_one repo), which rebuilds the superbill PDF for every client with a visit completed in the last 3 days and replaces it in the client's Files tab in PracticeQ.\n\nSetup:\n1. n8n Variables: SUPERBILL_URL = https://<host of the service> (no trailing slash).\n2. Credential (Header Auth) named \"Superbill service (X-Superbill-Secret)\": header name X-Superbill-Secret, value = SUPERBILL_SECRET of the service.\n3. Optional: wire the \"true\" branch of \"Any errors?\" to a Gmail/Slack node.\n\nCompletion is time-based (a Confirmed visit whose end time has passed), so a schedule is required; the PracticeQ appointment webhook already belongs to the GHL workflow and is not touched.",
+        "height": 330,
+        "width": 520
+      },
+      "id": "1a0f8f2e-0006-4c1e-9a5e-000000000006",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -380]
+    }
+  ],
+  "connections": {
+    "Every hour": { "main": [[{ "node": "Start superbill sync", "type": "main", "index": 0 }]] },
+    "Start superbill sync": { "main": [[{ "node": "Wait for the run", "type": "main", "index": 0 }]] },
+    "Wait for the run": { "main": [[{ "node": "Read sync result", "type": "main", "index": 0 }]] },
+    "Read sync result": { "main": [[{ "node": "Any errors?", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "America/New_York" },
+  "active": false
+}

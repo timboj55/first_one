@@ -140,6 +140,37 @@ with header name exactly `X-Auth-Key` and the bare key as value, then run
 
 ---
 
+# Automatic superbills into PracticeQ client files
+
+`superbill/` rebuilds a patient's superbill PDF whenever one of their visits is completed and
+replaces the copy in their **Files** tab in PracticeQ. Lines come from confirmed past
+appointments (CPT from the appointment's procedures, else `superbill_config.json`), money from
+invoices (paid in full vs payment plan vs balance due), diagnoses from the client's diagnosis
+list. Runs hourly from cron / Cloud Run or from n8n (`n8n/superbill-sync.json`). Setup,
+template mapping and operations are in [docs/SUPERBILL_SETUP.md](docs/SUPERBILL_SETUP.md).
+
+```
+superbill/api.py       Files API (list / upload / delete), client profile, diagnoses
+superbill/build.py     completed-visit rules, episode window, lines, totals, payment plan flag
+superbill/render.py    the PDF (fpdf2), redesigned from the practice's template
+superbill/sync.py      which clients to refresh; replace the previous superbill file
+superbill/server.py    /sync, /rebuild/<id>, /webhook, /status for n8n
+superbill_config.json  practice, provider (NPI, license, EIN), CPT defaults, wording
+tests/test_superbill.py
+```
+
+```bash
+python -m superbill preview --client-id 123 --out preview.pdf   # render only
+python -m superbill --dry-run sync                              # what would change
+python -m superbill sync                                        # hourly job
+python -m superbill serve                                       # HTTP for n8n
+```
+
+Note: this service is the one component in this repo that writes to PracticeQ (file delete and
+upload in a client's Files tab). It runs where it is deployed, not from a Claude Code session.
+
+---
+
 # Lead follow-up agent (after hours + busy hours) for GoHighLevel
 
 `lead_agent/` is a separate service in this repo: it texts and calls new GHL leads when the

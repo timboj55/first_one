@@ -56,16 +56,32 @@ class IntakeQClient:
 
     # ---- transport -------------------------------------------------------------------
 
-    def request(self, method: str, path: str, params: Optional[Dict[str, Any]] = None, body: Any = None) -> Any:
+    def request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        body: Any = None,
+        raw: Optional[bytes] = None,
+        content_type: Optional[str] = None,
+        decode_json: bool = True,
+    ) -> Any:
+        """One HTTP call. ``body`` is JSON-encoded; ``raw`` sends bytes as-is with ``content_type``
+        (file uploads). With ``decode_json=False`` the response bytes are returned untouched."""
         query = {k: v for k, v in (params or {}).items() if v is not None and v != ""}
         url = f"{self.base_url}/{path.lstrip('/')}"
         if query:
             url += "?" + urllib.parse.urlencode(query)
-        data = json.dumps(body).encode() if body is not None else None
+        if raw is not None:
+            data = raw
+        else:
+            data = json.dumps(body).encode() if body is not None else None
         headers = {"Accept": "application/json"}
         if self.api_key:
             headers["X-Auth-Key"] = self.api_key
-        if data is not None:
+        if raw is not None:
+            headers["Content-Type"] = content_type or "application/octet-stream"
+        elif data is not None:
             headers["Content-Type"] = "application/json"
 
         attempt = 0
@@ -74,9 +90,11 @@ class IntakeQClient:
             req = urllib.request.Request(url, data=data, method=method, headers=headers)
             try:
                 with self._open(req) as resp:
-                    raw = resp.read()
+                    payload = resp.read()
                 self.calls_made += 1
-                return json.loads(raw) if raw else None
+                if not decode_json:
+                    return payload
+                return json.loads(payload) if payload else None
             except urllib.error.HTTPError as e:
                 self.calls_made += 1
                 text = e.read().decode(errors="replace") if hasattr(e, "read") else ""

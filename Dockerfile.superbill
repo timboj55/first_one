@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir "fpdf2>=2.8.0"
+COPY intakeq_packages ./intakeq_packages
+COPY superbill ./superbill
+COPY superbill_config.json .
+ENV PORT=8080 SUPERBILL_CONFIG=/app/superbill_config.json INTAKEQ_MIN_SECONDS_BETWEEN_CALLS=3.2
+VOLUME ["/data"]
+EXPOSE 8080
+# One-shot mode (cron / Cloud Run job):  docker run ... superbill python -m superbill sync
+CMD ["python", "-m", "superbill", "serve"]
