@@ -1,0 +1,44 @@
+# Superbill service next to n8n on the same host.
+#
+#   cd /path/to/first_one
+#   cp .env.example .env              # fill INTAKEQ_API_KEY and SUPERBILL_SECRET
+#   docker network ls                 # find the network n8n is on (often <folder>_default)
+#   N8N_NETWORK=<that network> docker compose -f deploy/docker-compose.superbill.yml up -d --build
+#
+# n8n then reaches the service at http://superbill:8080 (set SUPERBILL_URL to that in
+# n8n Variables). The port is also published on 127.0.0.1:8090 for curl checks from the host;
+# nothing is exposed publicly, so no HTTPS is needed.
+
+services:
+  superbill:
+    build:
+      context: ..
+      dockerfile: Dockerfile.superbill
+    container_name: superbill
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      INTAKEQ_MIN_SECONDS_BETWEEN_CALLS: "3.2"
+      SUPERBILL_CONFIG: /app/superbill_config.json
+      SUPERBILL_STATE: /data/superbill_state.json
+    volumes:
+      - superbill_data:/data
+      - ../superbill_config.json:/app/superbill_config.json:ro
+    ports:
+      - "127.0.0.1:8090:8080"
+    networks:
+      - n8n
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  superbill_data:
+
+networks:
+  n8n:
+    external: true
+    name: ${N8N_NETWORK:-n8n_default}

@@ -146,7 +146,8 @@ with header name exactly `X-Auth-Key` and the bare key as value, then run
 replaces the copy in their **Files** tab in PracticeQ. Lines come from confirmed past
 appointments (CPT from the appointment's procedures, else `superbill_config.json`), money from
 invoices (paid in full vs payment plan vs balance due), diagnoses from the client's diagnosis
-list. Runs hourly from cron / Cloud Run or from n8n (`n8n/superbill-sync.json`). Setup,
+list. Runs as a Docker container on the n8n host, triggered hourly by n8n
+(`deploy/docker-compose.superbill.yml`, `n8n/superbill-sync.json`). Setup,
 template mapping and operations are in [docs/SUPERBILL_SETUP.md](docs/SUPERBILL_SETUP.md).
 
 ```

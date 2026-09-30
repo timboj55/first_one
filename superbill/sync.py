@@ -56,7 +56,9 @@ class SuperbillSync:
         self.cfg = cfg
         self.dry_run = dry_run
         self.tz = ZoneInfo(cfg["timezone"])
-        self.state_path = state_path if state_path is not None else (cfg.get("sync", {}).get("state_path") or "")
+        if state_path is None:
+            state_path = os.environ.get("SUPERBILL_STATE") or cfg.get("sync", {}).get("state_path") or ""
+        self.state_path = state_path
         self.state: Dict[str, str] = self._load_state()
 
     # ---- state (optional): client id -> fingerprint of the last uploaded superbill ------

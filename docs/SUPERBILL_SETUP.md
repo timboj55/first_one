@@ -86,29 +86,33 @@ python -m superbill rebuild --client-id 123                      # first real up
 Check the file in that client's Files tab in PracticeQ. If the upload fails with HTTP 400, the
 multipart field name may differ from `file`; it is set in `superbill/api.py` (`upload_file`).
 
-## 4. Run it on a schedule
+## 4. Run it on the n8n host (chosen setup)
 
-**Option A: cron / Cloud Run job (simplest, no service to host).** Run
-`python -m superbill sync` hourly during clinic hours (or once nightly with `--since-days 3`).
-State (`out/superbill_state.json`, the per-client fingerprints that avoid re-uploading an
-unchanged PDF) is optional; without a persistent disk set `"state_path": ""` and every run
-re-uploads for the clients it touches.
+The service runs as one Docker container next to n8n; n8n triggers it hourly. Nothing is
+exposed to the internet, so no domain or certificate is needed.
 
+```bash
+# on the n8n server
+git clone https://github.com/timboj55/first_one.git && cd first_one
+cp .env.example .env                 # set INTAKEQ_API_KEY and SUPERBILL_SECRET (openssl rand -hex 24)
+docker network ls                    # note the network n8n runs on, e.g. n8n_default
+N8N_NETWORK=n8n_default docker compose -f deploy/docker-compose.superbill.yml up -d --build
+curl -s http://127.0.0.1:8090/healthz                          # {"ok": true}
+docker exec superbill python -m superbill --dry-run sync       # what would be uploaded, no writes
+docker exec superbill python -m superbill rebuild --client-id 123   # first real upload, one patient
 ```
-0 7-21 * * *  cd /opt/first_one && python -m superbill sync >> /var/log/superbill.log 2>&1
-```
 
-**Option B: n8n calls the service.** Run `python -m superbill serve` (or
-`docker build -f Dockerfile.superbill -t superbill . && docker run -d --env-file .env -p 8080:8080 -v superbill_data:/data superbill`)
-behind HTTPS, then import `n8n/superbill-sync.json`:
+Then in n8n:
 
-1. n8n Variables: `SUPERBILL_URL` = the service URL.
-2. Credential (Header Auth) named `Superbill service (X-Superbill-Secret)`: header `X-Superbill-Secret`, value = `SUPERBILL_SECRET`.
-3. Activate. The workflow POSTs `/sync?since_days=3` hourly, waits, reads `/status`, and has an "Any errors?" branch to wire to Gmail/Slack.
+1. Settings > Variables: `SUPERBILL_URL` = `http://superbill:8080`.
+2. Credentials > new **Header Auth** named `Superbill service (X-Superbill-Secret)`: name `X-Superbill-Secret`, value = the `SUPERBILL_SECRET` from `.env`.
+3. Workflows > Import from file > `n8n/superbill-sync.json`, open it, run once manually, then activate. It POSTs `/sync?since_days=3` hourly at :20, waits 12 minutes, reads `/status`, and has an "Any errors?" branch to wire to a Gmail or Slack node.
 
-Service routes: `POST /sync`, `POST /rebuild/<clientId>` (immediate, e.g. a manual button),
-`POST /webhook` (accepts a forwarded PracticeQ appointment webhook and refreshes that client
-once the appointment has ended), `GET /status`, `GET /healthz`.
+Updating later: `git pull && docker compose -f deploy/docker-compose.superbill.yml up -d --build`.
+Per-client fingerprints live on the `superbill_data` volume so unchanged superbills are not re-uploaded.
+
+Alternatives (not set up): a plain cron line running `python -m superbill sync` hourly, or a
+Cloud Run job in the cockpit's Google Cloud project. The code is the same; only the trigger differs.
 
 ## 5. Operations
 
