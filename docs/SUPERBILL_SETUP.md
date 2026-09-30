@@ -70,6 +70,7 @@ Edit `superbill_config.json`:
 - `providers_by_email`: add `{"<practitioner email in PracticeQ>": {"name": ..., "npi": ...}}` for each additional therapist; visits are attributed to the practitioner on the last visit.
 - `service_defaults`: CPT/units used when an appointment carries no procedure codes. `"*"` is the catch-all; add exact service names (e.g. `"Initial Evaluation": {"cpt": "97163", "units": 1}`) as needed. Entering procedures on the appointment in PracticeQ always wins.
 - `zero_price_uses_list_price` (default true): a visit booked at $0 because a package covers it is charged at the service's PracticeQ list price, so it appears on the superbill; the package savings show as the provider discount. Services whose list price is also $0 (e.g. Complimentary Visit) stay off.
+- `prorate_packages` (default true): a prepaid package item (description matches `package_pattern`, e.g. "12-Visit Package") counts toward amount billed/paid only for the visits used so far (item amount / visits x visits used), so the provider discount reflects the package savings. Payment-plan installments are not pro-rated.
 - `exclude_service_patterns`: regexes for services that must never be billed (e.g. `"(?i)cost .*availability"`).
 - `signature_image`: path to a PNG of the provider's signature, if it should print on the form.
 - `file.name_format`: `Superbill - {name}.pdf`; every existing file starting with `file.replace_prefix` is replaced on each refresh.

@@ -174,6 +174,27 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(data.total_charges, 895.0)
         self.assertEqual(sum(1 for m, u in fake.calls if "appointments/settings" in u), 1)
 
+    def test_prepaid_package_is_prorated_to_visits_used(self):
+        appts = [
+            appt(date(2026, 8, 3), price=97.0, procedures=[], service="Initial Consultation"),
+            appt(date(2026, 8, 5), price=0, procedures=[], service="Follow-Up"),
+            appt(date(2026, 8, 7), price=0, procedures=[], service="Follow-Up"),
+        ]
+        invoices = [
+            {"Number": 2, "Status": "Paid", "TotalAmount": 3998.0, "AmountPaid": 3998.0, "IssuedDate": ms(date(2026, 8, 4)),
+             "Items": [{"Description": "12-Visit Package", "Units": 1, "Price": 4788.0, "TotalAmount": 3998.0}]},
+            {"Number": 1, "Status": "Paid", "TotalAmount": 97.0, "AmountPaid": 97.0, "IssuedDate": ms(date(2026, 8, 3)),
+             "Items": [{"Description": "Initial Consultation", "Units": 1, "Price": 97.0, "TotalAmount": 97.0}]},
+        ]
+        api, _ = make(appts, invoices)
+        data = build_superbill(api, 101, self.cfg, now=NOW)
+        self.assertEqual(data.total_charges, 895.0)
+        self.assertAlmostEqual(data.total_billed, 97.0 + 3998.0 / 12 * 2, places=2)
+        self.assertAlmostEqual(data.total_payments, data.total_billed, places=2)
+        self.assertAlmostEqual(data.provider_discount, 895.0 - data.total_billed, places=2)
+        self.assertEqual(data.balance, 0.0)
+        self.assertEqual(data.invoice_numbers, [1, 2])
+
     def test_zero_price_list_price_can_be_turned_off(self):
         cfg = dict(self.cfg, zero_price_uses_list_price=False)
         api, _ = make([appt(date(2026, 8, 3), price=97.0, procedures=[]), appt(date(2026, 8, 5), price=0, procedures=[])], [])

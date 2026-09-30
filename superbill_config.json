@@ -20,6 +20,7 @@
   "completed_statuses": ["Confirmed"],
   "include_zero_charge": false,
   "zero_price_uses_list_price": true,
+  "prorate_packages": true,
   "exclude_service_patterns": [],
   "episode": {
     "rolling_days": 365,

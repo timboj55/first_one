@@ -25,6 +25,9 @@ DEFAULTS: Dict[str, Any] = {
     "include_zero_charge": False,
     # $0 visits (package-covered) are charged at the service's PracticeQ list price.
     "zero_price_uses_list_price": True,
+    # Prepaid packages ("12-Visit Package") count only for the visits used: item / visits x used.
+    "prorate_packages": True,
+    "package_pattern": r"(?i)(\d+)\s*-?\s*visit",
     "exclude_service_patterns": [],
     "episode": {
         "rolling_days": 365,

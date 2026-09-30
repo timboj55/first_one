@@ -275,6 +275,49 @@ def _address(profile: Dict[str, Any]) -> str:
     return joined or str(profile.get("Address") or "")
 
 
+def _item_amount(item: Dict[str, Any]) -> float:
+    for key in ("TotalAmount", "Amount"):
+        if item.get(key) not in (None, ""):
+            try:
+                return float(item[key])
+            except (TypeError, ValueError):
+                pass
+    try:
+        return float(item.get("Price") or 0) * float(item.get("Units") or item.get("Quantity") or 1)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _prorated_invoice_amount(
+    inv: Dict[str, Any], total: float, remaining_visits: int, cfg: Dict[str, Any]
+) -> "tuple[float, int]":
+    """Amount of one invoice that belongs on the superbill. A prepaid package item (description
+    matches ``package_pattern``, e.g. "12-Visit Package") counts only for the visits used so far:
+    item amount / visits in the package x visits used. Other items count in full. Returns the
+    counted amount and the package visits still to allocate to later invoices."""
+    items = inv.get("Items") or []
+    pattern = cfg.get("package_pattern") or r"(?i)(\d+)\s*-?\s*visit"
+    package_total = 0.0
+    counted_packages = 0.0
+    for item in items:
+        m = re.search(pattern, str(item.get("Description") or ""))
+        if not m or int(m.group(1)) <= 0:
+            continue
+        try:
+            qty = max(1, int(float(item.get("Units") or item.get("Quantity") or 1)))
+        except (TypeError, ValueError):
+            qty = 1
+        visits = int(m.group(1)) * qty
+        amount = _item_amount(item)
+        used = min(visits, remaining_visits)
+        remaining_visits -= used
+        package_total += amount
+        counted_packages += amount / visits * used
+    if package_total <= 0:
+        return total, remaining_visits
+    return round(total - package_total + counted_packages, 2), remaining_visits
+
+
 # ---- main entry --------------------------------------------------------------------------
 
 def build_superbill(
@@ -318,6 +361,7 @@ def build_superbill(
         list_prices = api.service_list_prices()
 
     lines: List[Line] = []
+    package_visits = 0  # $0 visits priced from the list price, i.e. covered by a prepaid package
     for a in completed:
         start = appointment_start(a, tz)
         if not start or start.date() < episode_start:
@@ -326,6 +370,8 @@ def build_superbill(
         charge = charge_for(a, list_prices)
         if charge <= 0 and not cfg.get("include_zero_charge"):
             continue
+        if charge > 0 and charge_for(a) <= 0:
+            package_visits += 1
         lines.append(Line(start.date(), description_for(a, procs, cfg), procs, charge, str(a.get("Id") or "")))
     if not lines:
         return None
@@ -340,11 +386,20 @@ def build_superbill(
     installments = 0
     numbers: List[int] = []
     inv_dx: List[str] = []
-    for inv in invoices:
-        if str(inv.get("Status")) not in statuses:
-            continue
-        billed += float(inv.get("TotalAmount") or 0)
-        paid += float(inv.get("AmountPaid") or 0)
+    kept = sorted(
+        (inv for inv in invoices if str(inv.get("Status")) in statuses),
+        key=lambda inv: float(inv.get("IssuedDate") or inv.get("DateCreated") or 0),
+    )
+    remaining_package_visits = package_visits
+    for inv in kept:
+        total = float(inv.get("TotalAmount") or 0)
+        counted = total
+        # payment-plan installments are already spread over time, so they count as invoiced
+        if cfg.get("prorate_packages", True) and not inv.get("ClientPaymentPlanId"):
+            counted, remaining_package_visits = _prorated_invoice_amount(inv, total, remaining_package_visits, cfg)
+        billed += counted
+        inv_paid = float(inv.get("AmountPaid") or 0)
+        paid += inv_paid * (counted / total) if total > 0 else inv_paid
         if inv.get("ClientPaymentPlanId"):
             payment_plan = True
             installments += 1
