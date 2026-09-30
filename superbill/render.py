@@ -207,10 +207,11 @@ class _PDF(FPDF):
         x0 = MARGIN + CONTENT_W - label_w - val_w
         # Charges and payments only: amount billed / discount / balance cannot be right for
         # payment-plan patients whose later installments are not invoiced yet.
-        rows = [
-            ("Total charges", money(d.total_charges), False),
-            ("Payments received to date", money(d.total_payments), True),
-        ]
+        rows = [("Total charges", money(d.total_charges), False)]
+        # Paid in full (no plan, nothing owed): charges - discount = payments, so the discount is exact.
+        if not d.payment_plan and d.balance <= 0.005 and d.provider_discount > 0.005:
+            rows.append(("Provider discount", money(-d.provider_discount), False))
+        rows.append(("Payments received to date", money(d.total_payments), True))
         for lab, val, bold in rows:
             self.set_x(x0)
             self.set_font("Helvetica", "B" if bold else "", 9.5)
