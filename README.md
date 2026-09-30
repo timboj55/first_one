@@ -52,12 +52,14 @@ last 30 days is missing.
 Routes considered:
 
 - **Support request for a packages endpoint** (`docs/intakeq-support-request.md`): the only
-  route that removes the manual export. No cost, no timeline. Send it regardless.
+  route that removes the manual export. **Sent by the owner on 2026-09-30.** Reply pending.
 - **Provisional purchase rows from invoice lines** the night the invoice appears, with a
   name-based session count, replaced by the real record at the next export. Narrows the
   export to monthly housekeeping. Costs: name-based count wrong about 5% of the time, about
   11% of purchases have no matching invoice line, and provisional rows carry no PracticeQ
-  counters so Completed POC still waits for the export. Cockpit-side change, owner's call.
+  counters so Completed POC still waits for the export. Implemented in the cockpit's
+  `build_ledger.py` (spec and dry-run results in `docs/provisional-purchases-spec.md`);
+  **owner approved switching it on in the nightly refresh on 2026-09-30.**
 - **Headless browser download of the export at 4am**: closes the gap but needs a stored
   PracticeQ login with full patient access, breaks silently on UI changes, and the refresh
   now runs in Google Cloud, not on the Mac. Rejected.
@@ -95,9 +97,9 @@ Done 2026-09-30 by the owner:
 - `N8N_API_KEY` API credential removed (it worked: one read-only workflow list returned 200).
 - The unused n8n Header Auth credential "IntakeQ API (X-Auth-Key)" deleted in n8n.
 - `N8N_BASE_URL` environment variable and the Trusted network setting left unchanged.
-- A separate API credential named "IntakeQ/PracticeQ" remains in the environment. It predates
-  this project; whether to keep it depends on other cloud sessions (the "GHL to IntakeQ task
-  integration" session of 2026-09-26 reported being blocked on an IntakeQ credential).
+- A separate API credential named "IntakeQ/PracticeQ" of unknown origin also existed in the
+  environment; recommended for removal on the same least-privilege grounds. Any future cloud
+  project that needs PracticeQ adds its own credential with header `X-Auth-Key`.
 
 If a cloud project ever needs PracticeQ again: add an API credential scoped to intakeq.com
 with header name exactly `X-Auth-Key` and the bare key as value, then run

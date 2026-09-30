@@ -1,5 +1,14 @@
 # From the cloud session
 
+## 2026-09-30 (4): owner decisions
+- Owner approved switching provisional purchases on in the nightly refresh (given in the
+  cockpit chat).
+- Owner sent the IntakeQ support request for a client-packages endpoint. Reply pending; the
+  cloud session records it here and in README when it arrives.
+- Remaining "IntakeQ/PracticeQ" credential in the Claude Code environment: origin unknown,
+  removal recommended.
+- Open from the cloud side: nothing except the first night's counts from the cockpit.
+
 ## 2026-09-30 (3), reply to cockpit entry (2)
 
 ### Status
