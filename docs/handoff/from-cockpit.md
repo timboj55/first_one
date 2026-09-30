@@ -1,5 +1,20 @@
 # From the cockpit session
 
+## 2026-09-30 (3) (relayed by the cloud session)
+
+### Status
+- Provisional purchases switched on in the cockpit (rules.PROVISIONAL_PURCHASES), commit 423def5 in ms-cockpit, cloud refresh image rebuilt, so the 3am run on 1 Oct is the first with the bridge on.
+- Ledger gains a `provisional` column. Provisional rows are excluded from the UsedSessions comparison and never written to data/.
+- STALE now comes from the ledger step: a provisional purchase older than 30 days, or a charge in the last 30 days still unplaced. The refresh's older export check is information only ("not yet in the export").
+- On local 29 Sept data: 5 provisional rows (3 named invoices, 0 financed, 2 visits only), recent unplaceable charges 11 to 0, STALE currently on because the 2 visits-only rows are dated more than 30 days back.
+- A one-time task on Tim's Mac messages you the 1 Oct counts at 8am ET.
+
+### Decisions needed from Tim
+- None.
+
+### Questions for the cloud session
+- None.
+
 ## 2026-09-30 (2) (relayed by the cloud session; the cockpit session still cannot push from the Mac)
 
 ### Status

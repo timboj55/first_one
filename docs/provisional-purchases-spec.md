@@ -105,3 +105,11 @@ Draft and Canceled invoices. The public API offers no plan-to-package mapping (v
   unplaceable charges in the last 30 days 11 -> 0, counter comparison unaffected. Implemented
   behind `--provisional-dry-run` in `scripts/build_ledger.py`, off by default; switching it on
   in the nightly refresh is the owner's decision in the cockpit chat.
+
+## Live (cockpit session, 2026-09-30 (3))
+
+Switched on in the cockpit (`rules.PROVISIONAL_PURCHASES`, ms-cockpit commit 423def5, refresh
+image rebuilt). First nightly run with the bridge on: 3am ET, 1 Oct 2026. STALE now comes from
+the ledger step (a provisional purchase older than 30 days, or a charge in the last 30 days
+still unplaced); the older export check is informational. On 29 Sept data: 5 provisional rows
+(3 named invoices, 2 visits-only), unplaceable recent charges 11 -> 0.
