@@ -21,6 +21,7 @@ DEFAULTS: Dict[str, Any] = {
     },
     "default_provider": {"name": "", "credentials": "", "license": "", "npi": "", "taxonomy": ""},
     "providers_by_email": {},
+    "show_signature": False,  # provider signature + date line at the bottom of the PDF
     "completed_statuses": ["Confirmed"],
     "include_zero_charge": False,
     # $0 visits (package-covered) are charged at the service's PracticeQ list price.

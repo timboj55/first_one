@@ -288,5 +288,6 @@ def render_pdf(data: SuperbillData, cfg: Dict[str, Any]) -> bytes:
     pdf.visits_table()
     pdf.totals()
     pdf.statement()
-    pdf.signature()
+    if cfg.get("show_signature", False):
+        pdf.signature()
     return bytes(pdf.output())

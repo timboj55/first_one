@@ -43,7 +43,7 @@ Everything on the original template, reorganized for a claims processor:
 | Amount billed to patient, total payments, account balance | invoices in the episode: `TotalAmount`, `AmountPaid` (statuses Paid / Unpaid / PastDue) |
 | Payment statement | **paid in full** (no plan, balance 0), **payment plan** (any invoice has a `ClientPaymentPlanId`; shows payments to date and installments invoiced), or **balance due** |
 | "NOT an insurance provider … PLEASE PROVIDE ANY PAYMENT DIRECTLY TO THE PATIENT" | config `text` |
-| Provider signature line + date | optional `signature_image` (PNG path) drawn above the line |
+| Provider signature line + date | off by default (`show_signature`); optional `signature_image` (PNG path) drawn above the line when on |
 
 Worked check against the template (Russ, payment plan): 18 visits x $399 = $7,182.00 charges,
 $5,668.20 billed and paid, provider discount $1,513.80, balance $0.00, payment-plan wording.

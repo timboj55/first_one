@@ -16,6 +16,7 @@
     "taxonomy": "225100000X (Physical Therapist)"
   },
   "providers_by_email": {},
+  "show_signature": false,
   "signature_image": "",
   "completed_statuses": ["Confirmed"],
   "include_zero_charge": false,
