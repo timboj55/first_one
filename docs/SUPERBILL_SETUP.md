@@ -104,7 +104,7 @@ docker exec superbill python -m superbill rebuild --client-id 123   # first real
 
 Then in n8n:
 
-1. Settings > Variables: `SUPERBILL_URL` = `http://superbill:8080`.
+1. The two HTTP nodes in the workflow already point at `http://superbill:8080`; edit both if the container runs elsewhere.
 2. Credentials > new **Header Auth** named `Superbill service (X-Superbill-Secret)`: name `X-Superbill-Secret`, value = the `SUPERBILL_SECRET` from `.env`.
 3. Workflows > Import from file > `n8n/superbill-sync.json`, open it, run once manually, then activate. It POSTs `/sync?since_days=3` hourly at :20, waits 12 minutes, reads `/status`, and has an "Any errors?" branch to wire to a Gmail or Slack node.
 

@@ -17,16 +17,22 @@
       "name": "Every hour",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [0, 0]
+      "position": [
+        0,
+        0
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $vars.SUPERBILL_URL }}/sync",
+        "url": "http://superbill:8080/sync",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "since_days", "value": "3" }
+            {
+              "name": "since_days",
+              "value": "3"
+            }
           ]
         },
         "authentication": "genericCredentialType",
@@ -39,7 +45,10 @@
       "name": "Start superbill sync",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [260, 0],
+      "position": [
+        260,
+        0
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "name": "Superbill service (X-Superbill-Secret)"
@@ -55,12 +64,15 @@
       "name": "Wait for the run",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [520, 0],
+      "position": [
+        520,
+        0
+      ],
       "webhookId": "1a0f8f2e-0003-4c1e-9a5e-000000000003"
     },
     {
       "parameters": {
-        "url": "={{ $vars.SUPERBILL_URL }}/status",
+        "url": "http://superbill:8080/status",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
@@ -69,7 +81,10 @@
       "name": "Read sync result",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [780, 0],
+      "position": [
+        780,
+        0
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "name": "Superbill service (X-Superbill-Secret)"
@@ -79,13 +94,20 @@
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "id": "c1",
               "leftValue": "={{ ($json.last && ($json.last.error || $json.last['error'] > 0)) ? 1 : 0 }}",
               "rightValue": 1,
-              "operator": { "type": "number", "operation": "equals" }
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "or"
@@ -96,11 +118,14 @@
       "name": "Any errors?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1040, 0]
+      "position": [
+        1040,
+        0
+      ]
     },
     {
       "parameters": {
-        "content": "## Superbill sync\n\nHourly: POST /sync on the superbill service (superbill/ in the first_one repo), which rebuilds the superbill PDF for every client with a visit completed in the last 3 days and replaces it in the client's Files tab in PracticeQ.\n\nSetup:\n1. n8n Variables: SUPERBILL_URL = http://superbill:8080 (the container from deploy/docker-compose.superbill.yml on this host; no trailing slash).\n2. Credential (Header Auth) named \"Superbill service (X-Superbill-Secret)\": header name X-Superbill-Secret, value = SUPERBILL_SECRET of the service.\n3. Optional: wire the \"true\" branch of \"Any errors?\" to a Gmail/Slack node.\n\nCompletion is time-based (a Confirmed visit whose end time has passed), so a schedule is required; the PracticeQ appointment webhook already belongs to the GHL workflow and is not touched.",
+        "content": "## Superbill sync\n\nHourly: POST /sync on the superbill service (superbill/ in the first_one repo), which rebuilds the superbill PDF for every client with a visit completed in the last 3 days and replaces it in the client's Files tab in PracticeQ.\n\nSetup:\n1. The two HTTP nodes call http://superbill:8080 (the container from deploy/docker-compose.superbill.yml on this host). Change the URL in both if it runs elsewhere.\n2. Credential (Header Auth) named \"Superbill service (X-Superbill-Secret)\": header name X-Superbill-Secret, value = SUPERBILL_SECRET of the service.\n3. Optional: wire the \"true\" branch of \"Any errors?\" to a Gmail/Slack node.\n\nCompletion is time-based (a Confirmed visit whose end time has passed), so a schedule is required; the PracticeQ appointment webhook already belongs to the GHL workflow and is not touched.",
         "height": 330,
         "width": 520
       },
@@ -108,15 +133,61 @@
       "name": "Sticky Note",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [0, -380]
+      "position": [
+        0,
+        -380
+      ]
     }
   ],
   "connections": {
-    "Every hour": { "main": [[{ "node": "Start superbill sync", "type": "main", "index": 0 }]] },
-    "Start superbill sync": { "main": [[{ "node": "Wait for the run", "type": "main", "index": 0 }]] },
-    "Wait for the run": { "main": [[{ "node": "Read sync result", "type": "main", "index": 0 }]] },
-    "Read sync result": { "main": [[{ "node": "Any errors?", "type": "main", "index": 0 }]] }
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "Start superbill sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start superbill sync": {
+      "main": [
+        [
+          {
+            "node": "Wait for the run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the run": {
+      "main": [
+        [
+          {
+            "node": "Read sync result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read sync result": {
+      "main": [
+        [
+          {
+            "node": "Any errors?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1", "timezone": "America/New_York" },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/New_York"
+  },
   "active": false
 }
