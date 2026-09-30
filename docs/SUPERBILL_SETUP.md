@@ -39,7 +39,7 @@ Everything on the original template, reorganized for a claims processor:
 | ICD-10 codes | `GET /client/{id}/diagnoses` (active codes); fallback: invoice `DiagnosisList` |
 | One line per visit: date, description, CPT x units (+ modifiers), charge | appointment `Procedures` when PracticeQ has them, else `service_defaults` (today: `97530 x4`, "Therapeutic Activity"); charge = appointment `Price`; a $0 (package-covered) visit is charged at the service's list price from PracticeQ settings (`zero_price_uses_list_price`) |
 | Total charges | sum of line charges |
-| Payments received to date (the only total shown besides charges) | invoices in the episode: `TotalAmount`, `AmountPaid` (statuses Paid / Unpaid / PastDue) |
+| Totals: paid in full shows total charges, provider discount and total after discount; payment plan or balance due shows total charges only | invoices in the episode: `TotalAmount`, `AmountPaid` (statuses Paid / Unpaid / PastDue) |
 | Payment statement | **paid in full** (no plan, balance 0), **payment plan** (any invoice has a `ClientPaymentPlanId`; shows payments to date and installments invoiced), or **balance due** |
 | "NOT an insurance provider … PLEASE PROVIDE ANY PAYMENT DIRECTLY TO THE PATIENT" | config `text` |
 | Provider signature line + date | off by default (`show_signature`); optional `signature_image` (PNG path) drawn above the line when on |

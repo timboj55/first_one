@@ -49,8 +49,8 @@ DEFAULTS: Dict[str, Any] = {
         ),
         "payment_plan": (
             "This patient is paying for the services listed above under a payment plan with "
-            "{practice}. Payments received to date: {paid}. {practice} is NOT an insurance "
-            "provider for this claim and has not been paid by any insurer."
+            "{practice}. {practice} is NOT an insurance provider for this claim and has not "
+            "been paid by any insurer."
         ),
         "balance_due": (
             "This patient has paid {paid} toward the services listed above; {balance} remains "
