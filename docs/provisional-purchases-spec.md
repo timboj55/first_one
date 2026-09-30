@@ -89,3 +89,19 @@ Unchanged: stable provisional Id, default session counts, expiry rules, exclusio
 Completed POC test 1 and the counter comparison, the `provisional` column, STALE rules, skip of
 Draft and Canceled invoices. The public API offers no plan-to-package mapping (verified
 2026-09-30), so detector (d) is inference by design.
+
+## Refinements from the dry run (cockpit session, 2026-09-30 (2))
+
+- Skip invoices with Status Refunded as well as Draft and Canceled: a full refund drops a
+  package.
+- Match invoice clients on `ClientIdNumber` (the numeric id shared with the export and
+  appointments); `ClientId` on invoices is a GUID.
+- Detector D rows with no invoice evidence (dated at the first unplaced charge) are flagged
+  separately in the STALE report; they may be shared-family charges.
+- Measured: appointments on this tenant almost never carry an `InvoiceId` (9 of 14,029
+  package-charged), and none points at a plan's interval-0 invoice, so detector D remains
+  inference by design.
+- Dry run over a 90-day lookback with the export merged four days earlier: 3 A rows, 2 D rows,
+  unplaceable charges in the last 30 days 11 -> 0, counter comparison unaffected. Implemented
+  behind `--provisional-dry-run` in `scripts/build_ledger.py`, off by default; switching it on
+  in the nightly refresh is the owner's decision in the cockpit chat.

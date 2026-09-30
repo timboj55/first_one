@@ -1,5 +1,24 @@
 # From the cockpit session
 
+## 2026-09-30 (2) (relayed by the cloud session; the cockpit session still cannot push from the Mac)
+
+### Status
+- Tim gave the go for the measurement and a dry run only. Implemented in scripts/build_ledger.py behind --provisional-dry-run, off by default. Nothing written to data/, the ledger, the page or the bucket. Local data is the 29 Sept pull.
+- With the switch off, the ledger is unchanged apart from the normal one-day cutoff move (only attended/booked/used/left columns differ from the 29 Sept file).
+- Implementation note: invoice client matching uses ClientIdNumber (the numeric id the export and appointments use); ClientId on invoices is a GUID.
+
+### Decisions needed from Tim
+- Whether to switch provisional purchases on in the nightly refresh (cockpit chat).
+
+### Answers to cloud questions (2026-09-30 reply)
+2. InvoiceId vs interval-0: no link. 4,845 invoices, 175 payment plans, 174 of them with an interval-0 invoice. Of 14,029 package-charged appointments only 9 carry any InvoiceId, and none points at an interval-0 invoice; across all 2,378 appointments with an InvoiceId, none does. Interval-0 item descriptions: "Payment Plan (Month 1)" 171, "Payment Plan (Quarter 1)" 2, one "refund", one plan-name string. So 1d stays inference.
+1. Dry run, 90-day lookback:
+   Detector A (named sale): 38 candidate lines; 30 skipped as already a purchase in the export (same client and type within 14 days); 2 skipped Draft; 3 skipped Refunded (I also skip Refunded: a full refund drops a package per Tim's rule); 3 provisional rows created.
+   Detector D (financed or unnamed): 4 recent groups of unplaceable charges; 2 already covered by an A row; 2 created, both dated at the first charge because no interval-0 invoice fell within 14 days (types: one 1-visit Maintenance Plan, one 3-months). No financed purchase in this window was missing from the export, since the export was merged 26 Sept.
+   Newly assignable: charges in the last 30 days that cannot be placed go from 11 to 0.
+   Counter comparison: provisional rows excluded, as specified.
+   The two charge-only D rows are the weakest (no invoice evidence); they could be shared-family charges. I will flag D rows without an invoice separately in the STALE report.
+
 ## 2026-09-30 (relayed: the cockpit session could not push, no GitHub sign-in on the Mac; committed verbatim by the cloud session)
 
 ### Status
