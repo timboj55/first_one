@@ -37,7 +37,7 @@ Everything on the original template, reorganized for a claims processor:
 | Patient name, DOB, address, phone | client profile (`GET /clients?includeProfile=true`) |
 | Rendering provider, credentials, NPI, license, taxonomy | config (`default_provider`, or `providers_by_email` keyed by the practitioner's PracticeQ email) |
 | ICD-10 codes | `GET /client/{id}/diagnoses` (active codes); fallback: invoice `DiagnosisList` |
-| One line per visit: date, description, CPT x units (+ modifiers), charge | appointment `Procedures` when PracticeQ has them, else `service_defaults` (today: `97530 x4`, "Therapeutic Activity"); charge = appointment `Price` |
+| One line per visit: date, description, CPT x units (+ modifiers), charge | appointment `Procedures` when PracticeQ has them, else `service_defaults` (today: `97530 x4`, "Therapeutic Activity"); charge = appointment `Price`; a $0 (package-covered) visit is charged at the service's list price from PracticeQ settings (`zero_price_uses_list_price`) |
 | Total charges | sum of line charges |
 | Provider discount | total charges - amount billed on invoices (package / plan pricing) |
 | Amount billed to patient, total payments, account balance | invoices in the episode: `TotalAmount`, `AmountPaid` (statuses Paid / Unpaid / PastDue) |
@@ -69,6 +69,7 @@ Edit `superbill_config.json`:
 - `practice`, `default_provider`: already filled from the template (EIN, NPI, license, address).
 - `providers_by_email`: add `{"<practitioner email in PracticeQ>": {"name": ..., "npi": ...}}` for each additional therapist; visits are attributed to the practitioner on the last visit.
 - `service_defaults`: CPT/units used when an appointment carries no procedure codes. `"*"` is the catch-all; add exact service names (e.g. `"Initial Evaluation": {"cpt": "97163", "units": 1}`) as needed. Entering procedures on the appointment in PracticeQ always wins.
+- `zero_price_uses_list_price` (default true): a visit booked at $0 because a package covers it is charged at the service's PracticeQ list price, so it appears on the superbill; the package savings show as the provider discount. Services whose list price is also $0 (e.g. Complimentary Visit) stay off.
 - `exclude_service_patterns`: regexes for services that must never be billed (e.g. `"(?i)cost .*availability"`).
 - `signature_image`: path to a PNG of the provider's signature, if it should print on the form.
 - `file.name_format`: `Superbill - {name}.pdf`; every existing file starting with `file.replace_prefix` is replaced on each refresh.

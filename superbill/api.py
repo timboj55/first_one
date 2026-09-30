@@ -40,6 +40,31 @@ class SuperbillAPI(IntakeQClient):
     def invoices_for_client(self, client_id: int, start_date: Optional[str] = None) -> List[Dict[str, Any]]:
         return list(self.invoices(client_id=client_id, start_date=start_date))
 
+    # ---- services --------------------------------------------------------------------
+
+    def service_list_prices(self) -> Dict[str, float]:
+        """Service list prices from GET /appointments/settings, keyed by service Id and by
+        lower-cased name. Fetched once per API instance; {} if the call fails."""
+        cached = getattr(self, "_service_prices", None)
+        if cached is not None:
+            return cached
+        prices: Dict[str, float] = {}
+        try:
+            settings = self.booking_settings() or {}
+        except Exception:  # noqa: BLE001 - missing list prices must not block the superbill
+            settings = {}
+        for svc in settings.get("Services") or []:
+            try:
+                price = float(svc.get("Price") or 0)
+            except (TypeError, ValueError):
+                continue
+            if svc.get("Id"):
+                prices["id:" + str(svc["Id"])] = price
+            if svc.get("Name"):
+                prices["name:" + str(svc["Name"]).strip().lower()] = price
+        self._service_prices = prices
+        return prices
+
     # ---- files -----------------------------------------------------------------------
 
     def files(self, client_id: int) -> List[Dict[str, Any]]:

@@ -23,6 +23,8 @@ DEFAULTS: Dict[str, Any] = {
     "providers_by_email": {},
     "completed_statuses": ["Confirmed"],
     "include_zero_charge": False,
+    # $0 visits (package-covered) are charged at the service's PracticeQ list price.
+    "zero_price_uses_list_price": True,
     "exclude_service_patterns": [],
     "episode": {
         "rolling_days": 365,

@@ -51,6 +51,11 @@ class FakeIntakeQ:
         if req.get_method() == "POST" and path.startswith("files/"):
             self.uploads.append((path.split("/")[-1], req.get_header("Content-type"), req.data))
             return FakeResponse(b"")
+        if path == "appointments/settings":
+            return FakeResponse(json.dumps({"Services": [
+                {"Id": "svc-fu", "Name": "Follow-Up", "Price": 399.0},
+                {"Id": "svc-comp", "Name": "Complimentary Visit", "Price": 0.0},
+            ]}).encode())
         if path == "appointments":
             rows = self.appointments
             if "page=2" in url:
@@ -155,6 +160,25 @@ class BuildTests(unittest.TestCase):
         data = build_superbill(api, 101, self.cfg, now=NOW)
         self.assertEqual(len(data.lines), 1)
         self.assertEqual(data.lines[0].procedure_label(), "97530 x4")
+
+    def test_zero_price_package_visits_use_service_list_price(self):
+        appts = [
+            appt(date(2026, 8, 3), price=97.0, procedures=[], service="Initial Consultation"),
+            appt(date(2026, 8, 5), price=0, procedures=[], service="Follow-Up"),
+            dict(appt(date(2026, 8, 7), price=0, procedures=[], service="Renamed"), ServiceId="svc-fu"),
+            appt(date(2026, 8, 9), price=0, procedures=[], service="Complimentary Visit"),
+        ]
+        api, fake = make(appts, [{"Number": 1, "Status": "Paid", "TotalAmount": 97.0, "AmountPaid": 97.0}])
+        data = build_superbill(api, 101, self.cfg, now=NOW)
+        self.assertEqual([l.charge for l in data.lines], [97.0, 399.0, 399.0])
+        self.assertEqual(data.total_charges, 895.0)
+        self.assertEqual(sum(1 for m, u in fake.calls if "appointments/settings" in u), 1)
+
+    def test_zero_price_list_price_can_be_turned_off(self):
+        cfg = dict(self.cfg, zero_price_uses_list_price=False)
+        api, _ = make([appt(date(2026, 8, 3), price=97.0, procedures=[]), appt(date(2026, 8, 5), price=0, procedures=[])], [])
+        data = build_superbill(api, 101, cfg, now=NOW)
+        self.assertEqual([l.charge for l in data.lines], [97.0])
 
     def test_no_visits_returns_none_and_other_clients_filtered(self):
         api, _ = make([appt(date(2026, 8, 3), client_id=202)], [])

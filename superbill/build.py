@@ -202,7 +202,9 @@ def procedures_for(appt: Dict[str, Any], cfg: Dict[str, Any]) -> List[Procedure]
     return [Procedure(str(spec.get("cpt")), int(spec.get("units") or 1), list(spec.get("modifiers") or []))]
 
 
-def charge_for(appt: Dict[str, Any]) -> float:
+def charge_for(appt: Dict[str, Any], list_prices: Optional[Dict[str, float]] = None) -> float:
+    """Appointment Price; else the sum of procedure prices; else (for $0 package-covered visits)
+    the service's list price from PracticeQ, matched on ServiceId then service name."""
     price = appt.get("Price")
     try:
         if price not in (None, "") and float(price) > 0:
@@ -215,7 +217,12 @@ def charge_for(appt: Dict[str, Any]) -> float:
             total += float(p.get("Price") or 0) * int(p.get("Units") or p.get("Quantity") or 1)
         except (TypeError, ValueError):
             continue
-    return round(total, 2)
+    if total > 0 or not list_prices:
+        return round(total, 2)
+    for key in ("id:" + str(appt.get("ServiceId") or ""), "name:" + service_name(appt).lower()):
+        if list_prices.get(key, 0) > 0:
+            return round(list_prices[key], 2)
+    return 0.0
 
 
 def description_for(appt: Dict[str, Any], procs: List[Procedure], cfg: Dict[str, Any]) -> str:
@@ -306,13 +313,17 @@ def build_superbill(
                 break
     episode_start = (episode_start_dt or now).date()
 
+    list_prices: Optional[Dict[str, float]] = None
+    if cfg.get("zero_price_uses_list_price", True) and any(charge_for(a) <= 0 for a in completed):
+        list_prices = api.service_list_prices()
+
     lines: List[Line] = []
     for a in completed:
         start = appointment_start(a, tz)
         if not start or start.date() < episode_start:
             continue
         procs = procedures_for(a, cfg)
-        charge = charge_for(a)
+        charge = charge_for(a, list_prices)
         if charge <= 0 and not cfg.get("include_zero_charge"):
             continue
         lines.append(Line(start.date(), description_for(a, procs, cfg), procs, charge, str(a.get("Id") or "")))

@@ -19,6 +19,7 @@
   "signature_image": "",
   "completed_statuses": ["Confirmed"],
   "include_zero_charge": false,
+  "zero_price_uses_list_price": true,
   "exclude_service_patterns": [],
   "episode": {
     "rolling_days": 365,
