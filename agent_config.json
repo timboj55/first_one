@@ -1,0 +1,112 @@
+{
+  "practice": {
+    "name": "Movement Solutions Physical Therapy",
+    "short_name": "Movement Solutions",
+    "agent_name": "Maya",
+    "timezone": "America/New_York",
+    "services_blurb": "Outpatient physical therapy: pain relief, injury recovery, post-surgical rehab and performance work with one-on-one care from a Doctor of Physical Therapy.",
+    "location_blurb": "Greenville, SC area (in-clinic; some telehealth).",
+    "website": "https://www.movementsolutions-sc.com",
+    "phone_display": "(864) 555-0100",
+    "inquiry_call_name": "Cost & Availability call",
+    "inquiry_call_minutes": 15,
+    "inquiry_call_purpose": "a quick phone call to talk through what's going on, go over cost and scheduling, and see whether we're the right fit",
+    "team_member_title": "one of our patient care coordinators",
+    "default_service_interest": "physical therapy",
+    "faq": [
+      {"q": "Do you take my insurance?", "a": "We are an out-of-network practice; many patients use out-of-network benefits or HSA/FSA, and the coordinator walks through exact numbers on the call."},
+      {"q": "How much does it cost?", "a": "It depends on the plan of care, so the coordinator covers pricing on the Cost & Availability call rather than by text."},
+      {"q": "Do I need a referral?", "a": "No referral is needed to start in South Carolina."},
+      {"q": "How long is a visit?", "a": "Visits are about an hour, one-on-one with your therapist."}
+    ],
+    "do_not_say": ["specific dollar amounts", "that we are in-network with any insurer", "any diagnosis or medical advice"]
+  },
+  "hours": {
+    "business": {
+      "mon": ["08:00", "17:00"],
+      "tue": ["08:00", "17:00"],
+      "wed": ["08:00", "17:00"],
+      "thu": ["08:00", "17:00"],
+      "fri": ["08:00", "16:00"],
+      "sat": null,
+      "sun": null
+    },
+    "quiet": ["20:30", "08:00"],
+    "call_window": ["09:00", "19:30"],
+    "holidays": ["2026-11-26", "2026-12-25", "2027-01-01"]
+  },
+  "busy_mode": {
+    "always_on": false,
+    "auto_after_minutes_unanswered": 5
+  },
+  "cadence": {
+    "initial": [
+      {"channel": "sms", "delay_minutes": 0},
+      {"channel": "call", "delay_minutes": 4},
+      {"channel": "sms", "delay_minutes": 90},
+      {"channel": "call", "delay_minutes": 1200},
+      {"channel": "sms", "delay_minutes": 1440},
+      {"channel": "sms", "delay_minutes": 2880, "event": "Last attempt. Send one short, no-pressure text: the door is open whenever they're ready, and they can reply here or call the office to book."}
+    ],
+    "after_reply_silence": [
+      {"delay_minutes": 120},
+      {"delay_minutes": 1440},
+      {"delay_minutes": 4320, "event": "Final gentle check-in. Keep it to one line and make replying effortless."}
+    ],
+    "max_sms": 6,
+    "max_calls": 2,
+    "min_minutes_after_call": 10,
+    "close_after_minutes": 2880
+  },
+  "calendar": {
+    "search_days": 7,
+    "appointment_title": "{inquiry_call_name} - {name} (booked by AI assistant)",
+    "assigned_user_id": null
+  },
+  "tags": {
+    "active": "ai-agent-active",
+    "stop": "ai-agent-stop",
+    "booked": "ai-agent-booked",
+    "handoff": "ai-agent-handoff",
+    "paused_human": "ai-agent-paused-human",
+    "opted_out": "ai-agent-opted-out",
+    "not_interested": "ai-agent-not-interested",
+    "wrong_number": "ai-agent-wrong-number",
+    "existing_patient": "ai-agent-existing-patient",
+    "consent": ""
+  },
+  "stop_rules": {
+    "skip_if_tagged": ["ai-agent-stop", "ai-agent-paused-human", "existing-patient", "do-not-contact"],
+    "skip_sources": []
+  },
+  "engage_on_unknown_inbound": false,
+  "models": {
+    "sms": "claude-opus-5-5",
+    "sms_effort": "medium"
+  },
+  "voice": {
+    "llm_model": "claude-5-sonnet",
+    "llm_temperature": 0.3,
+    "voice_id": "11labs-Adrian",
+    "voice_model": "eleven_flash_v2_5",
+    "voice_temperature": 1.0,
+    "voice_speed": 1.0,
+    "language": "en-US",
+    "responsiveness": 0.9,
+    "interruption_sensitivity": 0.8,
+    "enable_backchannel": true,
+    "backchannel_frequency": 0.7,
+    "backchannel_words": ["mm-hmm", "yeah", "okay", "gotcha", "right"],
+    "ambient_sound": "call-center",
+    "ambient_sound_volume": 0.25,
+    "reminder_trigger_ms": 9000,
+    "reminder_max_count": 2,
+    "end_call_after_silence_ms": 25000,
+    "max_call_duration_ms": 360000,
+    "boosted_keywords": ["Movement Solutions", "physical therapy", "Maya", "Greenville"],
+    "pronunciation_dictionary": [],
+    "transfer_number": "",
+    "text_after_missed_call": true,
+    "disclosure_line": "this is Maya, the virtual assistant for Movement Solutions"
+  }
+}

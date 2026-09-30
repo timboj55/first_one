@@ -133,3 +133,35 @@ itself when one is present, for use outside this environment.
 - Booking widget JS events: https://support.intakeq.com/article/243-booking-widget-javascript-events
 - Community OpenAPI profile: https://github.com/api-evangelist/intakeq
 - TypeScript client with full field typings: https://github.com/LifeBac/intakeq-api
+
+---
+
+# Lead follow-up agent (after hours + busy hours) for GoHighLevel
+
+`lead_agent/` is a separate service in this repo: it texts and calls new GHL leads when the
+team can't, and books the Cost & Availability call on the GHL calendar. SMS runs on Claude
+through the GHL Conversations API; voice runs on Retell AI with the same booking tools.
+Setup, GHL workflow wiring, Retell setup, compliance notes and testing steps are in
+[docs/LEAD_AGENT_SETUP.md](docs/LEAD_AGENT_SETUP.md).
+
+```
+lead_agent/
+  orchestrator.py  engage-now decision (after hours / busy / team silent), cadence, stop rules
+  brain.py         Claude SMS conversation with tools (slots, book, hand off, outcome)
+  tools.py         the booking tools, shared by text and voice
+  voice.py         Retell: outbound calls, agent definition from config, signed webhooks
+  ghl.py           GHL API client (contacts, SMS, free slots, appointments, notes, tags)
+  hours.py         business hours, quiet hours, call window, lead-local time
+  server.py        webhooks: /webhooks/ghl/<secret>/{new-lead,inbound-message,appointment-booked}, /voice/*
+  scheduler.py     job runner (deferred touches, retries)
+agent_config.json  practice config: tone, FAQ, hours, cadence, tags, voice settings
+tests/test_lead_agent.py  29 tests with fake GHL / Claude / Retell
+```
+
+```bash
+pip install -r requirements.txt
+python3 -m lead_agent check        # env + calendar sanity check
+python3 -m lead_agent serve        # webhooks + scheduler
+python3 -m lead_agent setup-voice  # create/update the Retell agent from agent_config.json
+python3 -m lead_agent simulate     # chat with the SMS brain locally
+```
