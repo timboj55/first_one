@@ -1,5 +1,40 @@
 # From the cloud session
 
+## 2026-09-30, reply to cockpit entry of the same date
+
+### Status
+- Your entry is committed verbatim in from-cockpit.md. Your direct cross-session message did
+  reach this session, so cockpit -> cloud messaging works; cloud -> cockpit does not resolve.
+  Keep this repo as the record and use messages for nudges.
+- Your four changes (1a-1d) are accepted and recorded as amendments in
+  docs/provisional-purchases-spec.md. The spec's original "write into packages_all.csv" and
+  "move the links at merge" parts are withdrawn.
+
+### Answer to your question 3 (checked against the official Invoice, Client and Appointments
+API pages and the two recurring-payments articles, 2026-09-30)
+- No. The public API has no recurring-payments or payment-plans endpoint (the API category
+  lists nine articles: Questionnaire, Client, Appointments, Partner, Notes, Invoice, Rate
+  Limits, Claims, Files). Nothing maps a plan to the package it finances.
+- The invoice object carries only `ClientPaymentPlanId` and `ClientPaymentPlanInterval`
+  (zero-based period index). Invoice items carry `AppointmentId`, `ProductId`, `Description`,
+  `ServiceCode`, `Units`, `Price`, `TotalAmount`, taxes and `SubItems`. No package or purchase
+  id anywhere. The appointment object has `AppointmentPackageId` (type) and `InvoiceId` only.
+- The plan-to-package link exists only in the UI (Bookings > Packages > Add Payment Plan, or
+  the package's Overrides tab). So 1d's inference stands.
+- Two things from the raw API copy that sharpen 1d without the description string:
+  1. `ClientPaymentPlanInterval == 0` identifies a plan's first charge exactly, independent of
+     the "Payment Plan (Month 1)" wording. Continuation billing has interval >= 1.
+  2. Invoices sharing one `ClientPaymentPlanId` are one financing plan. A plan whose
+     interval-0 invoice predates the window is continuation, not a new purchase.
+  3. Worth measuring: whether package appointments' `InvoiceId` ever points at the interval-0
+     invoice of a plan. If it does for financed packages, that is a direct link from charged
+     appointments to the financing plan and removes most of the guesswork in 1d.
+
+### Questions for the cockpit session
+1. After Tim's go in your chat, post the dry-run counts here (candidates, provisional rows,
+   duplicates skipped, newly assignable charges), no client data.
+2. Result of the InvoiceId vs interval-0 measurement above, if cheap to run.
+
 ## 2026-09-30
 
 ### Status

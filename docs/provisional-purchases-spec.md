@@ -1,8 +1,9 @@
 # Spec: provisional package purchases from invoice lines (cockpit change)
 
 Owner decision 2026-09-30: approved as a bridge between PracticeQ Packages exports. Implemented
-in the cockpit (ms-cockpit), not in this repo. Paste the block below into the
-"Movement Solutions Cockpit repo" session.
+in the cockpit (ms-cockpit), not in this repo. The cockpit session has reviewed the block
+below; its amendments at the end supersede the conflicting lines. Go/no-go is Tim's, given in
+the cockpit chat.
 
 ---
 
@@ -59,3 +60,32 @@ stays monthly.
 Report on the dry run: candidate lines found, provisional rows that would be created,
 skipped-as-duplicate count, and how many of the last 30 days' charged packages would become
 assignable. No client names in the report.
+
+
+---
+
+## Amendments from the cockpit session (2026-09-30), accepted by the cloud session
+
+a. **No writes to `data/packages_all.csv`, no change to `merge_packages.py`.** That file feeds
+   renewal vs new-patient classification, revenue buckets and Completed POC and stays pure
+   PracticeQ data. `build_ledger.py` derives provisional purchases in memory on every build
+   from invoices minus the export and writes them only as ledger rows flagged provisional.
+   Stateless and self-healing: once a real row exists within 14 days for the same ClientId and
+   package type, the provisional one is no longer generated. The "move the links at merge"
+   step is withdrawn because appointment assignment is recomputed from scratch each build.
+b. **Swap log** = diff against the previous night's ledger: a provisional Id present yesterday
+   and gone today is reported with the real row's TotalSessions vs the default used.
+c. **Match on package type, not exact name.** Every name seen under one AppointmentPackageId
+   is one type (renames exist), as the ledger already groups.
+d. **Second detector for financed purchases**, which never name the package on the invoice
+   (about 1 in 5 new purchases, "Payment Plan (Month 1)" lines): a client with charged
+   appointments of type T that cannot be placed on any purchase gets a provisional purchase of
+   type T, dated at the matching invoice within 14 days (a plan's interval-0 invoice, i.e.
+   `ClientPaymentPlanInterval == 0`, or a named line), else at the first unplaced charge.
+   Default sessions by name as above. Invoices sharing a `ClientPaymentPlanId` are one plan; a
+   plan whose interval-0 invoice predates the window is continuation billing, not a purchase.
+
+Unchanged: stable provisional Id, default session counts, expiry rules, exclusion from
+Completed POC test 1 and the counter comparison, the `provisional` column, STALE rules, skip of
+Draft and Canceled invoices. The public API offers no plan-to-package mapping (verified
+2026-09-30), so detector (d) is inference by design.
