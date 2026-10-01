@@ -185,8 +185,9 @@ python3 -m lead_agent simulate     # chat with the SMS brain locally
 # Booking summary PDF (n8n)
 
 `n8n/appointment-summary/` is an importable n8n workflow that uploads a PDF of all a patient's
-upcoming appointments to their PracticeQ client file (replacing the previous one), 30 minutes after their last booking or
-schedule change (the buffer for catching scheduling mistakes). It is separate from the
-"IntakeQ Appointments -> GHL" workflow and does not touch the PracticeQ webhook. Setup and
-behaviour: [docs/APPOINTMENT_SUMMARY_SETUP.md](docs/APPOINTMENT_SUMMARY_SETUP.md).
+upcoming appointments to their PracticeQ client file (replacing the previous one), 30 minutes
+after their last booking or schedule change (the buffer for catching scheduling mistakes),
+during business hours plus one hour. It is driven by PracticeQ's appointment events, forwarded
+by one added node in the "IntakeQ Appointments -> GHL" workflow, and queues them in an n8n
+data table. Setup and behaviour: [docs/APPOINTMENT_SUMMARY_SETUP.md](docs/APPOINTMENT_SUMMARY_SETUP.md).
 Tests: `node --test n8n/appointment-summary/test.mjs`.

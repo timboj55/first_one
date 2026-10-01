@@ -1,4 +1,4 @@
-// Runs the three Code nodes outside n8n with a fake $, $input, static data and clock.
+// Runs the Code nodes outside n8n with a fake $, $input, data table and clock.
 //   node n8n/appointment-summary/test.mjs
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -15,7 +15,12 @@ const DAY = 24 * 60 * MIN;
 
 const SETTINGS = {
   mode: 'test', testClientId: '999', bufferMinutes: 30, timezone: 'America/New_York',
-  practiceName: 'Movement Solutions', practicePhone: '555-0100',
+  practiceName: 'Movement Solutions', practicePhone: '555-0100', afterCloseMinutes: 60,
+  businessHours: JSON.stringify({
+    mon: ['08:00', '17:00'], tue: ['08:00', '17:00'], wed: ['08:00', '17:00'], thu: ['08:00', '17:00'],
+    fri: ['08:00', '16:00'], sat: null, sun: null,
+  }),
+  holidays: '2026-11-26,2026-12-25',
 };
 
 function node(file) {
@@ -29,7 +34,11 @@ function node(file) {
   };
 }
 const json = (run) => (args) => run(args).map((i) => i.json);
-const queue = json(node('queue.js'));
+const classify = json(node('classify.js'));
+const hours = json(node('hours.js'));
+const duePatients = json(node('due.js'));
+const keepDue = json(node('keep-due.js'));
+const retries = json(node('retries.js'));
 const buildRaw = node('build-pdfs.js');
 const build = json(buildRaw);
 const finish = json(node('finish.js'));
@@ -48,59 +57,97 @@ const appt = (o = {}) => ({
   LocationName: 'Main', ...o,
 });
 
-function started() {
-  const state = {};
-  assert.deepEqual(queue({ input: [{}], state, now: T0 - 60 * MIN }), []);
-  return state;
+// PracticeQ webhook payload as forwarded by the existing workflow ($json.body).
+const event = (type, o = {}) => ({ body: { EventType: type, ClientId: 7, Appointment: appt(o) } });
+
+// In-memory stand-in for the booking_summary_queue data table plus one sweeper run.
+function harness() {
+  const table = [];
+  return {
+    table,
+    receive(ev, now) { table.push(...classify({ input: [ev], now })); },
+    sweep(now) {
+      const due = duePatients({ input: [...table], now });
+      for (const d of due) {
+        for (let i = table.length - 1; i >= 0; i--) {
+          if (table[i].clientId === d.clientId && table[i].eventAt <= d.upTo) table.splice(i, 1);
+        }
+      }
+      return keepDue({ nodes: { 'Due patients': due }, now });
+    },
+  };
 }
 
-test('first run only sets the cursor', () => {
-  const state = {};
-  const out = queue({ input: [appt({ DateCreated: T0 - 5 * MIN, LastModified: T0 - 5 * MIN })], state, now: T0 });
-  assert.deepEqual(out, []);
-  assert.equal(state.cursor, T0);
-  assert.deepEqual(state.pending, {});
-});
-
-test('a booking is sent once the schedule is quiet for 30 minutes', () => {
-  const state = started();
-  const a = appt();
-  assert.deepEqual(queue({ input: [a], state, now: T0 + 2 * MIN }), []);
-  assert.equal(state.pending['7'].dueAt, T0 + 30 * MIN);
-  // A later poll sees the same row again (updatedSince is a date): no change to the timer.
-  assert.deepEqual(queue({ input: [a], state, now: T0 + 20 * MIN }), []);
-  const due = queue({ input: [a], state, now: T0 + 31 * MIN });
-  assert.equal(due.length, 1);
-  assert.equal(due[0].email, 'jane@example.com');
-  assert.deepEqual(state.pending, {});
-  assert.deepEqual(queue({ input: [a], state, now: T0 + 40 * MIN }), [], 'never sent twice');
-});
-
-test('more bookings or a fix during the wait push the send back', () => {
-  const state = started();
-  queue({ input: [appt()], state, now: T0 + 2 * MIN });
-  queue({ input: [appt({ DateCreated: T0 + 10 * MIN, LastModified: T0 + 10 * MIN })], state, now: T0 + 12 * MIN });
-  assert.equal(state.pending['7'].dueAt, T0 + 40 * MIN);
-  // A reschedule of an existing appointment (not a new booking) still extends the wait.
-  queue({ input: [appt({ DateCreated: T0 - DAY, LastModified: T0 + 25 * MIN })], state, now: T0 + 27 * MIN });
-  assert.equal(state.pending['7'].dueAt, T0 + 55 * MIN);
-  assert.deepEqual(queue({ input: [], state, now: T0 + 50 * MIN }), []);
-  assert.equal(queue({ input: [], state, now: T0 + 56 * MIN }).length, 1);
-});
-
-test('edits to clients who are not waiting do not trigger an email', () => {
-  const state = started();
-  const out = queue({
-    input: [
-      appt({ DateCreated: T0 - 30 * DAY, LastModified: T0 }), // marked attended / invoiced
-      appt({ ClientId: 8, Status: 'Canceled', LastModified: T0 }), // booked and cancelled already
-      appt({ ClientId: 9, StartDate: T0 - DAY }), // back-dated entry
-    ],
-    state, now: T0 + 2 * MIN,
+test('only a new, open, future appointment counts as a booking', () => {
+  const at = (ev) => classify({ input: [ev], now: T0 })[0];
+  assert.deepEqual(at(event('AppointmentCreated')), {
+    clientId: '7', clientName: 'Jane Doe', clientEmail: 'jane@example.com', eventAt: T0, isBooking: true, attempts: 0,
   });
-  assert.deepEqual(out, []);
-  assert.deepEqual(state.pending, {});
-  assert.equal(state.cursor, T0);
+  assert.equal(at(event('AppointmentCreated', { Status: 'WaitingConfirmation' })).isBooking, true);
+  assert.equal(at(event('AppointmentRescheduled')).isBooking, false);
+  assert.equal(at(event('AppointmentCanceled', { Status: 'Canceled' })).isBooking, false);
+  assert.equal(at(event('AppointmentCreated', { StartDate: T0 - DAY })).isBooking, false, 'back-dated entry');
+  assert.equal(at(event('AppointmentCreated').body).isBooking, true, 'accepts the bare payload too');
+  assert.deepEqual(classify({ input: [{ body: { EventType: 'AppointmentCreated' } }], now: T0 }), []);
+});
+
+test('a booking gets one PDF once the schedule is quiet for 30 minutes', () => {
+  const h = harness();
+  h.receive(event('AppointmentCreated'), T0);
+  h.receive(event('AppointmentCreated'), T0 + 10 * MIN); // second visit booked
+  h.receive(event('AppointmentRescheduled'), T0 + 25 * MIN); // mistake fixed
+  assert.deepEqual(h.sweep(T0 + 50 * MIN), []);
+  const due = h.sweep(T0 + 55 * MIN);
+  assert.deepEqual(due.map((d) => [d.clientId, d.name, d.email, d.upTo]), [['7', 'Jane Doe', 'jane@example.com', T0 + 25 * MIN]]);
+  assert.deepEqual(h.table, []);
+  assert.deepEqual(h.sweep(T0 + 60 * MIN), [], 'never twice');
+});
+
+test('changes for a patient without a new booking are dropped', () => {
+  const h = harness();
+  h.receive(event('AppointmentCanceled', { Status: 'Canceled' }), T0);
+  h.receive(event('AppointmentMissed', { ClientId: 8 }), T0);
+  assert.deepEqual(h.sweep(T0 + 31 * MIN), []);
+  assert.deepEqual(h.table, []);
+});
+
+test('an event arriving during a run stays queued for the next round', () => {
+  const h = harness();
+  h.receive(event('AppointmentCreated'), T0);
+  const due = duePatients({ input: [...h.table], now: T0 + 31 * MIN });
+  h.receive(event('AppointmentCreated'), T0 + 32 * MIN); // lands between "Read queue" and "Remove from queue"
+  for (let i = h.table.length - 1; i >= 0; i--) if (h.table[i].eventAt <= due[0].upTo) h.table.splice(i, 1);
+  assert.equal(h.table.length, 1);
+  assert.equal(h.sweep(T0 + 63 * MIN).length, 1);
+});
+
+test('at most 10 PDFs per run, oldest first', () => {
+  const rows = Array.from({ length: 12 }, (_, i) => ({ clientId: String(i), eventAt: T0 + i, isBooking: true }));
+  const out = duePatients({ input: rows, now: T0 + 60 * MIN });
+  assert.deepEqual(out.map((r) => r.clientId), ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+});
+
+test('runs only in business hours plus one hour, never on holidays', () => {
+  const et = (iso) => Date.parse(iso); // all times below are Eastern (EDT, -04:00 / EST, -05:00)
+  const open = (iso) => hours({ input: [{}], now: et(iso) }).length === 1;
+  assert.equal(open('2026-10-01T07:59:00-04:00'), false, 'Thu before opening');
+  assert.equal(open('2026-10-01T08:00:00-04:00'), true, 'Thu opening');
+  assert.equal(open('2026-10-01T17:30:00-04:00'), true, 'Thu, within the hour after closing');
+  assert.equal(open('2026-10-01T18:00:00-04:00'), false, 'Thu, 1 hour after closing');
+  assert.equal(open('2026-10-02T16:59:00-04:00'), true, 'Fri closes at 4, so open until 5');
+  assert.equal(open('2026-10-02T17:00:00-04:00'), false);
+  assert.equal(open('2026-10-03T12:00:00-04:00'), false, 'Saturday');
+  assert.equal(open('2026-11-26T12:00:00-05:00'), false, 'Thanksgiving');
+  assert.equal(open('2026-11-27T12:00:00-05:00'), true);
+});
+
+test('after-hours bookings wait for the next opening', () => {
+  const h = harness();
+  const fri9pm = Date.parse('2026-10-02T21:00:00-04:00');
+  h.receive(event('AppointmentCreated'), fri9pm);
+  const sweepIfOpen = (now) => (hours({ input: [{}], now }).length ? h.sweep(now) : []);
+  assert.deepEqual(sweepIfOpen(Date.parse('2026-10-03T10:00:00-04:00')), []); // Saturday
+  assert.equal(sweepIfOpen(Date.parse('2026-10-05T08:00:00-04:00')).length, 1); // Monday 8am
 });
 
 test('PDF lists only that client\'s open future appointments, in order', () => {
@@ -114,7 +161,7 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
     appt({ Id: 'past', StartDate: T0 - DAY, ServiceName: 'Past one' }),
     appt({ Id: 'other', ClientId: 70, ClientEmail: 'jane@example.com.au', ServiceName: 'Someone else' }),
   ];
-  const [item] = buildRaw({ input: rows, nodes: { 'Queue bookings': due }, now: T0 + 31 * MIN });
+  const [item] = buildRaw({ input: rows, nodes: { 'Keep due': due }, now: T0 + 31 * MIN });
   assert.equal(item.json.count, 3);
   assert.equal(item.json.uploadTo, '999', 'test mode uploads to the test client');
   assert.equal(item.json.fileName, 'TEST - Jane Doe - Upcoming appointments 2026-10-01.pdf');
@@ -132,7 +179,7 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
   assert.ok(text.indexOf('Oct 2,') < text.indexOf('Oct 3,') && text.indexOf('Oct 3,') < text.indexOf('Oct 10,'));
   assert.match(text, /3 upcoming appointments\. If anything looks wrong, please call us at 555-0100\./);
 
-  const [live] = build({ input: rows, nodes: { 'Queue bookings': due }, now: T0, settings: { ...SETTINGS, mode: 'live' } });
+  const [live] = build({ input: rows, nodes: { 'Keep due': due }, now: T0, settings: { ...SETTINGS, mode: 'live' } });
   assert.equal(live.uploadTo, 7);
   assert.equal(live.fileName, 'Upcoming appointments 2026-10-01.pdf');
 });
@@ -140,7 +187,7 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
 test('long schedules continue on a second page', () => {
   const due = [{ clientId: 7, name: 'Jane Doe' }];
   const rows = Array.from({ length: 40 }, (_, i) => appt({ Id: `p${i}`, StartDate: T0 + (i + 1) * DAY }));
-  const [item] = buildRaw({ input: rows, nodes: { 'Queue bookings': due }, now: T0 });
+  const [item] = buildRaw({ input: rows, nodes: { 'Keep due': due }, now: T0 });
   const { text, pages } = pdfToText(item);
   assert.equal(pages, 2);
   assert.equal((text.match(/Follow-up/g) || []).length, 40);
@@ -149,23 +196,24 @@ test('long schedules continue on a second page', () => {
 
 test('no PDF when everything was cancelled', () => {
   const due = [{ clientId: 7, email: 'jane@example.com', name: 'Jane Doe' }];
-  assert.deepEqual(build({ input: [appt({ Status: 'Canceled' })], nodes: { 'Queue bookings': due }, now: T0 }), []);
+  assert.deepEqual(build({ input: [appt({ Status: 'Canceled' })], nodes: { 'Keep due': due }, now: T0 }), []);
 });
 
-test('failed uploads are retried twice, then given up', () => {
-  const state = { cursor: T0, pending: {} };
+test('failed uploads are logged and re-queued twice, then given up', () => {
   const pdfs = [
-    { clientId: 7, email: 'jane@example.com', name: 'Jane', uploadTo: 7, count: 2, attempts: 0 },
-    { clientId: 8, email: 'bob@example.com', name: 'Bob', uploadTo: 8, count: 1, attempts: 2 },
-    { clientId: 9, email: 'sam@example.com', name: 'Sam', uploadTo: 9, count: 1, attempts: 0 },
+    { clientId: '7', email: 'jane@example.com', name: 'Jane', uploadTo: '7', count: 2, attempts: 0 },
+    { clientId: '8', email: 'bob@example.com', name: 'Bob', uploadTo: '8', count: 1, attempts: 2 },
+    { clientId: '9', email: 'sam@example.com', name: 'Sam', uploadTo: '9', count: 1, attempts: 0 },
   ];
-  const out = finish({
-    nodes: { 'Build PDFs': pdfs, 'Upload to client file': [{ error: { message: '429' } }, { error: 'not found' }, { Id: 'f1' }] }, state, now: T0,
-  });
-  assert.deepEqual(out.map((r) => r.status), ['failed, will retry', 'failed, gave up', 'uploaded']);
-  assert.deepEqual(Object.keys(state.pending), ['7']);
-  assert.equal(state.pending['7'].attempts, 1);
-  assert.equal(state.pending['7'].dueAt, T0 + 10 * MIN);
+  const nodes = { 'Build PDFs': pdfs, 'Upload to client file': [{ error: { message: '429' } }, { error: 'not found' }, { Id: 'f1' }] };
+  assert.deepEqual(finish({ nodes, now: T0 }).map((r) => r.status), ['failed', 'failed', 'uploaded']);
+  const again = retries({ nodes, now: T0 });
+  assert.deepEqual(again, [{
+    clientId: '7', clientName: 'Jane', clientEmail: 'jane@example.com', eventAt: T0 - 20 * MIN, isBooking: true, attempts: 1,
+  }]);
+  // ...which the sweeper picks up 10 minutes later.
+  assert.deepEqual(duePatients({ input: again, now: T0 + 9 * MIN }), []);
+  assert.equal(duePatients({ input: again, now: T0 + 10 * MIN })[0].attempts, 1);
 });
 
 test('older summaries are deleted only after the new one uploads', () => {
@@ -206,8 +254,11 @@ test('older summaries are deleted only after the new one uploads', () => {
 test('workflow.json is up to date with the Code node sources', () => {
   const wf = JSON.parse(readFileSync(join(here, 'workflow.json'), 'utf8'));
   const code = Object.fromEntries(wf.nodes.filter((n) => n.parameters.jsCode).map((n) => [n.name, n.parameters.jsCode]));
-  assert.equal(code['Queue bookings'], readFileSync(join(here, 'queue.js'), 'utf8'));
   assert.equal(code['Build PDFs'], readFileSync(join(here, 'build-pdfs.js'), 'utf8'));
+  for (const [name, file] of [['Classify event', 'classify.js'], ['Business hours?', 'hours.js'], ['Due patients', 'due.js'],
+    ['Keep due', 'keep-due.js'], ['Retries', 'retries.js']]) {
+    assert.equal(code[name], readFileSync(join(here, file), 'utf8'));
+  }
   assert.equal(code['Record results'], readFileSync(join(here, 'finish.js'), 'utf8'));
   assert.equal(code['Pick old summaries'], readFileSync(join(here, 'replace.js'), 'utf8'));
   assert.equal(wf.active, false);

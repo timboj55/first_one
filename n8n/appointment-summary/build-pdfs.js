@@ -4,7 +4,7 @@
 // binary property `data`. The PDF is written by hand (Helvetica, US Letter) so the workflow
 // needs no PDF library on the n8n server.
 const s = $('Settings').first().json;
-const due = $('Queue bookings').all().map((i) => i.json);
+const due = $('Keep due').all().map((i) => i.json);
 const rows = $input.all().map((i) => i.json).filter((r) => r && r.Id);
 const OPEN = ['Confirmed', 'WaitingConfirmation'];
 const now = Date.now();
