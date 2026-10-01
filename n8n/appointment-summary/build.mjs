@@ -8,7 +8,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const src = (f) => readFileSync(join(here, f), 'utf8');
 
 const IQ = { httpHeaderAuth: { id: '', name: 'PracticeQ API (X-Auth-Key)' } };
-const GHL = { httpHeaderAuth: { id: '', name: 'GHL Private Integration (Bearer)' } };
 const auth = { authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth' };
 const setting = (name, value, type = 'string') => ({ id: `setting-${name}`, name, value, type });
 
@@ -24,12 +23,11 @@ const nodes = [
       assignments: {
         assignments: [
           setting('mode', 'test'),
-          setting('testEmail', 'CHANGE-ME@example.com'),
+          setting('testClientId', 'CHANGE-ME'),
           setting('bufferMinutes', 30, 'number'),
           setting('timezone', 'America/New_York'),
           setting('practiceName', 'Movement Solutions'),
           setting('practicePhone', 'CHANGE-ME'),
-          setting('ghlLocationId', 'CHANGE-ME'),
         ],
       },
       options: {},
@@ -82,37 +80,22 @@ const nodes = [
     },
   },
   {
-    id: 'summary-build', name: 'Build emails', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1100, 0],
-    parameters: { jsCode: src('build-emails.js') },
+    id: 'summary-build', name: 'Build PDFs', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1100, 0],
+    parameters: { jsCode: src('build-pdfs.js') },
   },
   {
-    id: 'summary-ghl-contact', name: 'Find GHL contact', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2,
-    position: [1320, 0], onError: 'continueRegularOutput', retryOnFail: true, maxTries: 2, waitBetweenTries: 3000,
-    credentials: GHL,
+    id: 'summary-upload', name: 'Upload to client file', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2,
+    position: [1320, 0], onError: 'continueRegularOutput', retryOnFail: true, maxTries: 2, waitBetweenTries: 5000,
+    credentials: IQ,
     parameters: {
-      method: 'POST', url: 'https://services.leadconnectorhq.com/contacts/upsert', ...auth,
-      sendHeaders: true,
-      headerParameters: { parameters: [{ name: 'Version', value: '2021-07-28' }] },
-      sendBody: true, specifyBody: 'json',
-      jsonBody: "={{ JSON.stringify({ locationId: $('Settings').first().json.ghlLocationId, email: $json.to }) }}",
-      options: {},
+      method: 'POST', url: '=https://intakeq.com/api/v1/files/{{ $json.uploadTo }}', ...auth,
+      sendBody: true, contentType: 'multipart-form-data',
+      bodyParameters: { parameters: [{ parameterType: 'formBinaryData', name: 'file', inputDataFieldName: 'data' }] },
+      options: { batching: { batch: { batchSize: 1, batchInterval: 3500 } } },
     },
   },
   {
-    id: 'summary-ghl-send', name: 'Send email', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2,
-    position: [1540, 0], onError: 'continueRegularOutput',
-    credentials: GHL,
-    parameters: {
-      method: 'POST', url: 'https://services.leadconnectorhq.com/conversations/messages', ...auth,
-      sendHeaders: true,
-      headerParameters: { parameters: [{ name: 'Version', value: '2021-04-15' }] },
-      sendBody: true, specifyBody: 'json',
-      jsonBody: "={{ JSON.stringify({ type: 'Email', contactId: $json.contact && $json.contact.id, subject: $('Build emails').item.json.subject, html: $('Build emails').item.json.html }) }}",
-      options: {},
-    },
-  },
-  {
-    id: 'summary-finish', name: 'Record results', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1760, 0],
+    id: 'summary-finish', name: 'Record results', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1540, 0],
     parameters: { jsCode: src('finish.js') },
   },
 ];
@@ -123,7 +106,7 @@ const connections = Object.fromEntries(
 );
 
 const workflow = {
-  name: 'PracticeQ booking summary email',
+  name: 'PracticeQ booking summary PDF',
   nodes,
   connections,
   settings: { executionOrder: 'v1' },

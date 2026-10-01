@@ -1,5 +1,5 @@
 {
-  "name": "PracticeQ booking summary email",
+  "name": "PracticeQ booking summary PDF",
   "nodes": [
     {
       "id": "summary-schedule",
@@ -40,9 +40,9 @@
               "type": "string"
             },
             {
-              "id": "setting-testEmail",
-              "name": "testEmail",
-              "value": "CHANGE-ME@example.com",
+              "id": "setting-testClientId",
+              "name": "testClientId",
+              "value": "CHANGE-ME",
               "type": "string"
             },
             {
@@ -66,12 +66,6 @@
             {
               "id": "setting-practicePhone",
               "name": "practicePhone",
-              "value": "CHANGE-ME",
-              "type": "string"
-            },
-            {
-              "id": "setting-ghlLocationId",
-              "name": "ghlLocationId",
               "value": "CHANGE-ME",
               "type": "string"
             }
@@ -193,7 +187,7 @@
     },
     {
       "id": "summary-build",
-      "name": "Build emails",
+      "name": "Build PDFs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -201,12 +195,12 @@
         0
       ],
       "parameters": {
-        "jsCode": "// Code node \"Build emails\" (run once for all items).\n// Input: every appointment from today on for each due client (from \"Get upcoming\").\n// Output: one item per email to send, with the GHL recipient, subject and HTML body.\nconst s = $('Settings').first().json;\nconst due = $('Queue bookings').all().map((i) => i.json);\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.Id);\nconst OPEN = ['Confirmed', 'WaitingConfirmation'];\nconst now = Date.now();\nconst live = s.mode === 'live';\n\nconst esc = (v) => String(v == null ? '' : v)\n  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\nconst fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { timeZone: s.timezone, ...opts }).format(new Date(ms));\n\nconst out = [];\nfor (const c of due) {\n  // The PracticeQ \"client\" filter is a partial name/email match, so keep only this client's rows.\n  const seen = new Set();\n  const appts = rows\n    .filter((r) => String(r.ClientId) === String(c.clientId) && OPEN.includes(r.Status) && Number(r.StartDate) > now)\n    .filter((r) => !seen.has(r.Id) && seen.add(r.Id))\n    .sort((a, b) => a.StartDate - b.StartDate);\n  if (!c.email || !appts.length) continue; // nothing to send (no email on file, or all cancelled)\n\n  const to = live ? c.email : s.testEmail;\n  if (!to) continue;\n\n  const first = esc(String(c.name).trim().split(/\\s+/)[0] || 'there');\n  const lines = appts.slice(0, 40).map((a) => `\n    <tr>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap\">${fmt(a.StartDate, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</td>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap\">${fmt(a.StartDate, { hour: 'numeric', minute: '2-digit' })}</td>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee\">${esc(a.ServiceName)}${a.Status === 'WaitingConfirmation' ? ' <em>(awaiting confirmation)</em>' : ''}</td>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee\">${esc(a.PractitionerName)}</td>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee\">${esc(a.LocationName)}</td>\n    </tr>`).join('');\n  const more = appts.length > 40 ? `<p>…and ${appts.length - 40} more.</p>` : '';\n\n  const html = `<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#222;line-height:1.5\">\n  <p>Hi ${first},</p>\n  <p>Here ${appts.length === 1 ? 'is your upcoming appointment' : `are your ${appts.length} upcoming appointments`} with ${esc(s.practiceName)}:</p>\n  <table style=\"border-collapse:collapse;font-size:14px\">\n    <tr style=\"text-align:left;background:#f5f5f5\">\n      <th style=\"padding:8px 12px\">Date</th><th style=\"padding:8px 12px\">Time</th><th style=\"padding:8px 12px\">Visit</th><th style=\"padding:8px 12px\">With</th><th style=\"padding:8px 12px\">Location</th>\n    </tr>${lines}\n  </table>${more}\n  <p>If anything looks wrong or you need to make a change, please call us at ${esc(s.practicePhone)} or reply to this email.</p>\n  <p>See you soon,<br>${esc(s.practiceName)}</p>\n</div>`;\n\n  const subject = `Your upcoming appointments at ${s.practiceName}`;\n  out.push({\n    json: {\n      ...c,\n      to,\n      count: appts.length,\n      subject: live ? subject : `[TEST for ${c.name} <${c.email}>] ${subject}`,\n      html,\n    },\n  });\n}\nreturn out;\n"
+        "jsCode": "// Code node \"Build PDFs\" (run once for all items).\n// Input: every appointment from today on for each due client (from \"Get upcoming\").\n// Output: one item per PDF to upload, with the PracticeQ client to upload to and the PDF as\n// binary property `data`. The PDF is written by hand (Helvetica, US Letter) so the workflow\n// needs no PDF library on the n8n server.\nconst s = $('Settings').first().json;\nconst due = $('Queue bookings').all().map((i) => i.json);\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.Id);\nconst OPEN = ['Confirmed', 'WaitingConfirmation'];\nconst now = Date.now();\nconst live = s.mode === 'live';\n\nconst fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { timeZone: s.timezone, ...opts }).format(new Date(ms));\nconst today = fmt(now, { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/(\\d+)\\/(\\d+)\\/(\\d+)/, '$3-$1-$2');\n\n// ---- minimal PDF writer --------------------------------------------------------------\nconst ASCII = { '‘': \"'\", '’': \"'\", '“': '\"', '”': '\"', '–': '-', '—': '-', '…': '...' };\nconst pdfText = (v) => String(v == null ? '' : v)\n  .replace(/[‘’“”–—…]/g, (c) => ASCII[c])\n  .replace(/[^\\x20-\\x7E\\xA0-\\xFF]/g, '?')\n  .replace(/[\\\\()]/g, (c) => '\\\\' + c);\nconst clip = (v, n) => { const t = String(v == null ? '' : v); return t.length > n ? t.slice(0, n - 3) + '...' : t; };\n\nfunction makePdf(pages) {\n  // pages: array of content-stream strings. Objects: 1 catalog, 2 pages, 3 Helvetica,\n  // 4 Helvetica-Bold, then a page object and a content stream per page.\n  const objs = [];\n  const kids = pages.map((_, i) => `${5 + i * 2} 0 R`).join(' ');\n  objs.push('<< /Type /Catalog /Pages 2 0 R >>');\n  objs.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`);\n  objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');\n  objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');\n  pages.forEach((content, i) => {\n    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6 + i * 2} 0 R >>`);\n    objs.push(`<< /Length ${content.length} >>\\nstream\\n${content}\\nendstream`);\n  });\n  let out = '%PDF-1.4\\n%\\xE2\\xE3\\xCF\\xD3\\n';\n  const offsets = objs.map((o, i) => { const at = out.length; out += `${i + 1} 0 obj\\n${o}\\nendobj\\n`; return at; });\n  const xref = out.length;\n  out += `xref\\n0 ${objs.length + 1}\\n0000000000 65535 f \\n`;\n  out += offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \\n`).join('');\n  out += `trailer\\n<< /Size ${objs.length + 1} /Root 1 0 R >>\\nstartxref\\n${xref}\\n%%EOF\\n`;\n  return Buffer.from(out, 'latin1'); // every character above is a single byte\n}\n\nconst text = (x, y, size, str, bold) => `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x} ${y} Td (${pdfText(str)}) Tj ET\\n`;\nconst rule = (y) => `0.8 G 0.5 w 50 ${y} m 562 ${y} l S\\n`;\nconst COLS = [[50, 'Date', 19], [150, 'Time', 10], [212, 'Visit', 33], [380, 'With', 21], [490, 'Location', 14]];\n\nfunction schedulePdf(c, appts) {\n  const pages = [];\n  let page = '';\n  let y = 0;\n  const header = (first) => {\n    y = 742;\n    if (first) {\n      page += text(50, y, 18, 'Upcoming appointments', true); y -= 22;\n      page += text(50, y, 11, s.practiceName); y -= 16;\n      page += text(50, y, 11, `Patient: ${c.name}`); y -= 16;\n      page += text(50, y, 9, `Prepared ${fmt(now, { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}`); y -= 28;\n    }\n    COLS.forEach(([x, label]) => { page += text(x, y, 10, label, true); });\n    y -= 6; page += rule(y); y -= 16;\n  };\n  header(true);\n  for (const a of appts) {\n    if (y < 90) { pages.push(page); page = ''; header(false); }\n    const visit = a.ServiceName + (a.Status === 'WaitingConfirmation' ? ' (pending)' : '');\n    const cells = [\n      fmt(a.StartDate, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),\n      fmt(a.StartDate, { hour: 'numeric', minute: '2-digit' }),\n      visit, a.PractitionerName, a.LocationName,\n    ];\n    COLS.forEach(([x, , n], i) => { page += text(x, y, 10, clip(cells[i], n)); });\n    y -= 6; page += rule(y); y -= 16;\n  }\n  y -= 10;\n  if (y < 60) { pages.push(page); page = ''; y = 742; }\n  page += text(50, y, 10, `${appts.length} upcoming appointment${appts.length === 1 ? '' : 's'}. If anything looks wrong, please call us at ${s.practicePhone}.`);\n  pages.push(page);\n  return makePdf(pages);\n}\n\n// ---- one PDF per due client ----------------------------------------------------------\nconst out = [];\nfor (const c of due) {\n  // The PracticeQ \"client\" filter is a partial name/email match, so keep only this client's rows.\n  const seen = new Set();\n  const appts = rows\n    .filter((r) => String(r.ClientId) === String(c.clientId) && OPEN.includes(r.Status) && Number(r.StartDate) > now)\n    .filter((r) => !seen.has(r.Id) && seen.add(r.Id))\n    .sort((a, b) => a.StartDate - b.StartDate);\n  if (!appts.length) continue; // everything was cancelled during the wait\n\n  const uploadTo = live ? c.clientId : s.testClientId;\n  if (!uploadTo) continue;\n  const fileName = `${live ? '' : `TEST - ${String(c.name).replace(/[\\\\/:*?\"<>|]/g, '')} - `}Upcoming appointments ${today}.pdf`;\n  out.push({\n    json: { ...c, uploadTo, count: appts.length, fileName },\n    binary: { data: { data: schedulePdf(c, appts).toString('base64'), mimeType: 'application/pdf', fileName, fileExtension: 'pdf' } },\n  });\n}\nreturn out;\n"
       }
     },
     {
-      "id": "summary-ghl-contact",
-      "name": "Find GHL contact",
+      "id": "summary-upload",
+      "name": "Upload to client file",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -216,67 +210,37 @@
       "onError": "continueRegularOutput",
       "retryOnFail": true,
       "maxTries": 2,
-      "waitBetweenTries": 3000,
+      "waitBetweenTries": 5000,
       "credentials": {
         "httpHeaderAuth": {
           "id": "",
-          "name": "GHL Private Integration (Bearer)"
+          "name": "PracticeQ API (X-Auth-Key)"
         }
       },
       "parameters": {
         "method": "POST",
-        "url": "https://services.leadconnectorhq.com/contacts/upsert",
+        "url": "=https://intakeq.com/api/v1/files/{{ $json.uploadTo }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
           "parameters": [
             {
-              "name": "Version",
-              "value": "2021-07-28"
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
             }
           ]
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ locationId: $('Settings').first().json.ghlLocationId, email: $json.to }) }}",
-        "options": {}
-      }
-    },
-    {
-      "id": "summary-ghl-send",
-      "name": "Send email",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1540,
-        0
-      ],
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "GHL Private Integration (Bearer)"
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 3500
+            }
+          }
         }
-      },
-      "parameters": {
-        "method": "POST",
-        "url": "https://services.leadconnectorhq.com/conversations/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Version",
-              "value": "2021-04-15"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ type: 'Email', contactId: $json.contact && $json.contact.id, subject: $('Build emails').item.json.subject, html: $('Build emails').item.json.html }) }}",
-        "options": {}
       }
     },
     {
@@ -285,11 +249,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
+        1540,
         0
       ],
       "parameters": {
-        "jsCode": "// Code node \"Record results\" (run once for all items).\n// Input: the GHL send responses, one per \"Build emails\" item in the same order (the send\n// nodes continue on error, so a failure is an item with an `error` field).\n// A failed send is retried 10 minutes later, up to 3 attempts in total. Output is a log line\n// per email, visible in the n8n execution.\nconst state = $getWorkflowStaticData('global');\nstate.pending = state.pending || {};\nconst emails = $('Build emails').all().map((i) => i.json);\nconst results = $input.all().map((i) => i.json);\nconst MAX_ATTEMPTS = 3;\n\nreturn emails.map((c, i) => {\n  const r = results[i] || { error: 'no response' };\n  const base = { clientId: c.clientId, to: c.to, appointments: c.count };\n  if (!r.error) return { json: { ...base, status: 'sent', messageId: r.messageId || r.emailMessageId || null } };\n\n  const attempts = (c.attempts || 0) + 1;\n  const key = String(c.clientId);\n  const retry = attempts < MAX_ATTEMPTS;\n  if (retry && !state.pending[key]) {\n    state.pending[key] = { clientId: c.clientId, email: c.email, name: c.name, dueAt: Date.now() + 10 * 60000, attempts };\n  }\n  const error = typeof r.error === 'string' ? r.error : (r.error.message || JSON.stringify(r.error));\n  return { json: { ...base, status: retry ? 'failed, will retry' : 'failed, gave up', attempts, error } };\n});\n"
+        "jsCode": "// Code node \"Record results\" (run once for all items).\n// Input: the PracticeQ upload responses, one per \"Build PDFs\" item in the same order (the\n// upload node continues on error, so a failure is an item with an `error` field).\n// A failed upload is retried 10 minutes later, up to 3 attempts in total. Output is a log line\n// per PDF, visible in the n8n execution.\nconst state = $getWorkflowStaticData('global');\nstate.pending = state.pending || {};\nconst pdfs = $('Build PDFs').all().map((i) => i.json);\nconst results = $input.all().map((i) => i.json);\nconst MAX_ATTEMPTS = 3;\n\nreturn pdfs.map((c, i) => {\n  const r = results[i] || { error: 'no response' };\n  const base = { clientId: c.clientId, uploadedTo: c.uploadTo, file: c.fileName, appointments: c.count };\n  if (!r.error) return { json: { ...base, status: 'uploaded', fileId: r.Id || null } };\n\n  const attempts = (c.attempts || 0) + 1;\n  const key = String(c.clientId);\n  const retry = attempts < MAX_ATTEMPTS;\n  if (retry && !state.pending[key]) {\n    state.pending[key] = { clientId: c.clientId, email: c.email, name: c.name, dueAt: Date.now() + 10 * 60000, attempts };\n  }\n  const error = typeof r.error === 'string' ? r.error : (r.error.message || JSON.stringify(r.error));\n  return { json: { ...base, status: retry ? 'failed, will retry' : 'failed, gave up', attempts, error } };\n});\n"
       }
     }
   ],
@@ -342,36 +306,25 @@
       "main": [
         [
           {
-            "node": "Build emails",
+            "node": "Build PDFs",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Build emails": {
+    "Build PDFs": {
       "main": [
         [
           {
-            "node": "Find GHL contact",
+            "node": "Upload to client file",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Find GHL contact": {
-      "main": [
-        [
-          {
-            "node": "Send email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send email": {
+    "Upload to client file": {
       "main": [
         [
           {

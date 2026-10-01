@@ -1,7 +1,9 @@
 // Runs the three Code nodes outside n8n with a fake $, $input, static data and clock.
 //   node n8n/appointment-summary/test.mjs
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +14,8 @@ const T0 = Date.UTC(2026, 9, 1, 14, 0); // 1 Oct 2026, 10:00 ET
 const DAY = 24 * 60 * MIN;
 
 const SETTINGS = {
-  mode: 'test', testEmail: 'front-desk@example.com', bufferMinutes: 30, timezone: 'America/New_York',
-  practiceName: 'Movement Solutions', practicePhone: '555-0100', ghlLocationId: 'loc',
+  mode: 'test', testClientId: '999', bufferMinutes: 30, timezone: 'America/New_York',
+  practiceName: 'Movement Solutions', practicePhone: '555-0100',
 };
 
 function node(file) {
@@ -23,12 +25,20 @@ function node(file) {
     class FakeDate extends Date { static now() { return now; } }
     const wrap = (arr) => ({ all: () => arr.map((json) => ({ json })), first: () => ({ json: arr[0] }) });
     const $ = (name) => wrap(name === 'Settings' ? [settings] : nodes[name] || []);
-    return fn(wrap(input), $, () => state, FakeDate).map((i) => i.json);
+    return fn(wrap(input), $, () => state, FakeDate);
   };
 }
-const queue = node('queue.js');
-const build = node('build-emails.js');
-const finish = node('finish.js');
+const json = (run) => (args) => run(args).map((i) => i.json);
+const queue = json(node('queue.js'));
+const buildRaw = node('build-pdfs.js');
+const build = json(buildRaw);
+const finish = json(node('finish.js'));
+
+function pdfToText(item) {
+  const file = join(mkdtempSync(join(tmpdir(), 'summary-')), 'out.pdf');
+  writeFileSync(file, Buffer.from(item.binary.data.data, 'base64'));
+  return { text: execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' }), pages: Number(execFileSync('pdfinfo', [file], { encoding: 'utf8' }).match(/Pages:\s+(\d+)/)[1]) };
+}
 
 let nextId = 1;
 const appt = (o = {}) => ({
@@ -92,54 +102,66 @@ test('edits to clients who are not waiting do not trigger an email', () => {
   assert.equal(state.cursor, T0);
 });
 
-test('email lists only that client\'s open future appointments, in order', () => {
+test('PDF lists only that client\'s open future appointments, in order', () => {
   const due = [{ clientId: 7, email: 'jane@example.com', name: 'Jane Doe', attempts: 0 }];
   const rows = [
-    appt({ Id: 'late', StartDate: T0 + 9 * DAY, ServiceName: 'Later <visit>' }),
+    appt({ Id: 'late', StartDate: T0 + 9 * DAY, ServiceName: 'Later (visit) – récheck' }),
     appt({ Id: 'soon', StartDate: T0 + DAY }),
     appt({ Id: 'soon', StartDate: T0 + DAY }), // duplicate row
     appt({ Id: 'pend', StartDate: T0 + 2 * DAY, Status: 'WaitingConfirmation' }),
-    appt({ Id: 'cxl', Status: 'Canceled' }),
-    appt({ Id: 'past', StartDate: T0 - DAY }),
-    appt({ Id: 'other', ClientId: 70, ClientEmail: 'jane@example.com.au' }),
+    appt({ Id: 'cxl', Status: 'Canceled', ServiceName: 'Cancelled one' }),
+    appt({ Id: 'past', StartDate: T0 - DAY, ServiceName: 'Past one' }),
+    appt({ Id: 'other', ClientId: 70, ClientEmail: 'jane@example.com.au', ServiceName: 'Someone else' }),
   ];
-  const [e] = build({ input: rows, nodes: { 'Queue bookings': due }, now: T0 + 31 * MIN });
-  assert.equal(e.count, 3);
-  assert.equal(e.to, 'front-desk@example.com');
-  assert.match(e.subject, /^\[TEST for Jane Doe <jane@example.com>\] Your upcoming appointments/);
-  assert.match(e.html, /Hi Jane,/);
-  assert.match(e.html, /Later &lt;visit&gt;/);
-  assert.match(e.html, /awaiting confirmation/);
-  assert.match(e.html, /Fri, Oct 2, 2026/);
-  assert.match(e.html, /10:00 AM/);
-  assert.ok(e.html.indexOf('Oct 2,') < e.html.indexOf('Oct 10,'));
+  const [item] = buildRaw({ input: rows, nodes: { 'Queue bookings': due }, now: T0 + 31 * MIN });
+  assert.equal(item.json.count, 3);
+  assert.equal(item.json.uploadTo, '999', 'test mode uploads to the test client');
+  assert.equal(item.json.fileName, 'TEST - Jane Doe - Upcoming appointments 2026-10-01.pdf');
+  assert.equal(item.binary.data.mimeType, 'application/pdf');
+
+  const { text, pages } = pdfToText(item);
+  assert.equal(pages, 1);
+  assert.match(text, /Upcoming appointments/);
+  assert.match(text, /Patient: Jane Doe/);
+  assert.match(text, /Fri, Oct 2, 2026\s+10:00 AM\s+Follow-up\s+Dr\. A\s+Main/);
+  assert.match(text, /Follow-up \(pending\)/);
+  assert.match(text, /Later \(visit\) - récheck/);
+  assert.doesNotMatch(text, /Cancelled one|Past one|Someone else/);
+  assert.ok(text.indexOf('Oct 2,') < text.indexOf('Oct 3,') && text.indexOf('Oct 3,') < text.indexOf('Oct 10,'));
+  assert.match(text, /3 upcoming appointments\. If anything looks wrong, please call us at 555-0100\./);
 
   const [live] = build({ input: rows, nodes: { 'Queue bookings': due }, now: T0, settings: { ...SETTINGS, mode: 'live' } });
-  assert.equal(live.to, 'jane@example.com');
-  assert.equal(live.subject, 'Your upcoming appointments at Movement Solutions');
+  assert.equal(live.uploadTo, 7);
+  assert.equal(live.fileName, 'Upcoming appointments 2026-10-01.pdf');
 });
 
-test('no email when everything was cancelled or there is no address', () => {
-  const due = [
-    { clientId: 7, email: 'jane@example.com', name: 'Jane Doe' },
-    { clientId: 8, email: '', name: 'No Email' },
-  ];
-  const rows = [appt({ Status: 'Canceled' }), appt({ ClientId: 8, ClientEmail: '' })];
-  assert.deepEqual(build({ input: rows, nodes: { 'Queue bookings': due }, now: T0 }), []);
+test('long schedules continue on a second page', () => {
+  const due = [{ clientId: 7, name: 'Jane Doe' }];
+  const rows = Array.from({ length: 40 }, (_, i) => appt({ Id: `p${i}`, StartDate: T0 + (i + 1) * DAY }));
+  const [item] = buildRaw({ input: rows, nodes: { 'Queue bookings': due }, now: T0 });
+  const { text, pages } = pdfToText(item);
+  assert.equal(pages, 2);
+  assert.equal((text.match(/Follow-up/g) || []).length, 40);
+  assert.match(text, /40 upcoming appointments/);
 });
 
-test('failed sends are retried twice, then given up', () => {
+test('no PDF when everything was cancelled', () => {
+  const due = [{ clientId: 7, email: 'jane@example.com', name: 'Jane Doe' }];
+  assert.deepEqual(build({ input: [appt({ Status: 'Canceled' })], nodes: { 'Queue bookings': due }, now: T0 }), []);
+});
+
+test('failed uploads are retried twice, then given up', () => {
   const state = { cursor: T0, pending: {} };
-  const emails = [
-    { clientId: 7, email: 'jane@example.com', name: 'Jane', to: 'x', count: 2, attempts: 0 },
-    { clientId: 8, email: 'bob@example.com', name: 'Bob', to: 'y', count: 1, attempts: 2 },
-    { clientId: 9, email: 'sam@example.com', name: 'Sam', to: 'z', count: 1, attempts: 0 },
+  const pdfs = [
+    { clientId: 7, email: 'jane@example.com', name: 'Jane', uploadTo: 7, count: 2, attempts: 0 },
+    { clientId: 8, email: 'bob@example.com', name: 'Bob', uploadTo: 8, count: 1, attempts: 2 },
+    { clientId: 9, email: 'sam@example.com', name: 'Sam', uploadTo: 9, count: 1, attempts: 0 },
   ];
   const out = finish({
-    input: [{ error: { message: '429' } }, { error: 'bad contact' }, { messageId: 'm1' }],
-    nodes: { 'Build emails': emails }, state, now: T0,
+    input: [{ error: { message: '429' } }, { error: 'not found' }, { Id: 'f1' }],
+    nodes: { 'Build PDFs': pdfs }, state, now: T0,
   });
-  assert.deepEqual(out.map((r) => r.status), ['failed, will retry', 'failed, gave up', 'sent']);
+  assert.deepEqual(out.map((r) => r.status), ['failed, will retry', 'failed, gave up', 'uploaded']);
   assert.deepEqual(Object.keys(state.pending), ['7']);
   assert.equal(state.pending['7'].attempts, 1);
   assert.equal(state.pending['7'].dueAt, T0 + 10 * MIN);
@@ -149,7 +171,7 @@ test('workflow.json is up to date with the Code node sources', () => {
   const wf = JSON.parse(readFileSync(join(here, 'workflow.json'), 'utf8'));
   const code = Object.fromEntries(wf.nodes.filter((n) => n.parameters.jsCode).map((n) => [n.name, n.parameters.jsCode]));
   assert.equal(code['Queue bookings'], readFileSync(join(here, 'queue.js'), 'utf8'));
-  assert.equal(code['Build emails'], readFileSync(join(here, 'build-emails.js'), 'utf8'));
+  assert.equal(code['Build PDFs'], readFileSync(join(here, 'build-pdfs.js'), 'utf8'));
   assert.equal(code['Record results'], readFileSync(join(here, 'finish.js'), 'utf8'));
   assert.equal(wf.active, false);
 });
