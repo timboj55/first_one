@@ -179,3 +179,14 @@ python3 -m lead_agent serve        # webhooks + scheduler
 python3 -m lead_agent setup-voice  # create/update the Retell agent from agent_config.json
 python3 -m lead_agent simulate     # chat with the SMS brain locally
 ```
+
+---
+
+# Booking summary email (n8n)
+
+`n8n/appointment-summary/` is an importable n8n workflow that emails a patient the list of all
+their upcoming appointments 30 minutes after their last booking or schedule change (the
+buffer for catching scheduling mistakes), sent through GHL. It is separate from the
+"IntakeQ Appointments -> GHL" workflow and does not touch the PracticeQ webhook. Setup and
+behaviour: [docs/APPOINTMENT_SUMMARY_SETUP.md](docs/APPOINTMENT_SUMMARY_SETUP.md).
+Tests: `node --test n8n/appointment-summary/test.mjs`.

@@ -1,0 +1,390 @@
+{
+  "name": "PracticeQ booking summary email",
+  "nodes": [
+    {
+      "id": "summary-schedule",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "summary-settings",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "setting-mode",
+              "name": "mode",
+              "value": "test",
+              "type": "string"
+            },
+            {
+              "id": "setting-testEmail",
+              "name": "testEmail",
+              "value": "CHANGE-ME@example.com",
+              "type": "string"
+            },
+            {
+              "id": "setting-bufferMinutes",
+              "name": "bufferMinutes",
+              "value": 30,
+              "type": "number"
+            },
+            {
+              "id": "setting-timezone",
+              "name": "timezone",
+              "value": "America/New_York",
+              "type": "string"
+            },
+            {
+              "id": "setting-practiceName",
+              "name": "practiceName",
+              "value": "Movement Solutions",
+              "type": "string"
+            },
+            {
+              "id": "setting-practicePhone",
+              "name": "practicePhone",
+              "value": "CHANGE-ME",
+              "type": "string"
+            },
+            {
+              "id": "setting-ghlLocationId",
+              "name": "ghlLocationId",
+              "value": "CHANGE-ME",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "summary-get-changed",
+      "name": "Get changed appointments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "PracticeQ API (X-Auth-Key)"
+        }
+      },
+      "parameters": {
+        "url": "https://intakeq.com/api/v1/appointments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "updatedSince",
+              "value": "={{ $now.setZone($('Settings').first().json.timezone).minus({ days: 1 }).toFormat('yyyy-MM-dd') }}"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "page",
+                    "value": "={{ $pageCount + 1 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.length < 100 }}",
+              "limitPagesFetched": true,
+              "maxRequests": 20,
+              "requestInterval": 3500
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "summary-queue",
+      "name": "Queue bookings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Code node \"Queue bookings\" (run once for all items).\n// Input: appointments PracticeQ reports as updated since yesterday (one item each, or one\n// empty item when there are none). Output: one item per client whose summary is due now.\n//\n// A client enters the queue when a new open appointment is booked for them. Any further\n// change to that client's appointments while they wait (another booking, a reschedule, a\n// cancellation) pushes the send time back, so the email goes out once the schedule has been\n// quiet for `bufferMinutes`. Edits to clients who are not waiting (marking a visit attended,\n// invoicing) never trigger an email.\nconst s = $('Settings').first().json;\nconst state = $getWorkflowStaticData('global');\nconst OPEN = ['Confirmed', 'WaitingConfirmation'];\nconst now = Date.now();\nconst bufferMs = Number(s.bufferMinutes) * 60000;\nstate.pending = state.pending || {};\n\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.Id);\n\nif (state.cursor === undefined) {\n  // First run: watch from now on, never email for changes made before the switch-on.\n  state.cursor = rows.reduce((m, r) => Math.max(m, Number(r.LastModified) || 0), now);\n  return [];\n}\n\nconst since = state.cursor;\nlet cursor = since;\nfor (const r of rows) {\n  const modified = Number(r.LastModified) || 0;\n  if (modified <= since) continue;\n  cursor = Math.max(cursor, modified);\n\n  const key = String(r.ClientId);\n  const waiting = state.pending[key];\n  const newBooking = Number(r.DateCreated) > since && OPEN.includes(r.Status) && Number(r.StartDate) > now;\n  if (!waiting && !newBooking) continue;\n\n  state.pending[key] = {\n    clientId: r.ClientId,\n    email: r.ClientEmail || (waiting && waiting.email) || '',\n    name: r.ClientName || (waiting && waiting.name) || '',\n    dueAt: Math.max(waiting ? waiting.dueAt : 0, modified + bufferMs),\n    attempts: waiting ? waiting.attempts : 0,\n  };\n}\nstate.cursor = cursor;\n\nconst due = [];\nfor (const [key, p] of Object.entries(state.pending)) {\n  if (p.dueAt <= now) {\n    due.push(p);\n    delete state.pending[key];\n  }\n}\nreturn due.map((p) => ({ json: p }));\n"
+      }
+    },
+    {
+      "id": "summary-get-upcoming",
+      "name": "Get upcoming",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "PracticeQ API (X-Auth-Key)"
+        }
+      },
+      "parameters": {
+        "url": "https://intakeq.com/api/v1/appointments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "client",
+              "value": "={{ $json.email || $json.name }}"
+            },
+            {
+              "name": "startDate",
+              "value": "={{ $now.setZone($('Settings').first().json.timezone).toFormat('yyyy-MM-dd') }}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 3500
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "summary-build",
+      "name": "Build emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Code node \"Build emails\" (run once for all items).\n// Input: every appointment from today on for each due client (from \"Get upcoming\").\n// Output: one item per email to send, with the GHL recipient, subject and HTML body.\nconst s = $('Settings').first().json;\nconst due = $('Queue bookings').all().map((i) => i.json);\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.Id);\nconst OPEN = ['Confirmed', 'WaitingConfirmation'];\nconst now = Date.now();\nconst live = s.mode === 'live';\n\nconst esc = (v) => String(v == null ? '' : v)\n  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\nconst fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { timeZone: s.timezone, ...opts }).format(new Date(ms));\n\nconst out = [];\nfor (const c of due) {\n  // The PracticeQ \"client\" filter is a partial name/email match, so keep only this client's rows.\n  const seen = new Set();\n  const appts = rows\n    .filter((r) => String(r.ClientId) === String(c.clientId) && OPEN.includes(r.Status) && Number(r.StartDate) > now)\n    .filter((r) => !seen.has(r.Id) && seen.add(r.Id))\n    .sort((a, b) => a.StartDate - b.StartDate);\n  if (!c.email || !appts.length) continue; // nothing to send (no email on file, or all cancelled)\n\n  const to = live ? c.email : s.testEmail;\n  if (!to) continue;\n\n  const first = esc(String(c.name).trim().split(/\\s+/)[0] || 'there');\n  const lines = appts.slice(0, 40).map((a) => `\n    <tr>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap\">${fmt(a.StartDate, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</td>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap\">${fmt(a.StartDate, { hour: 'numeric', minute: '2-digit' })}</td>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee\">${esc(a.ServiceName)}${a.Status === 'WaitingConfirmation' ? ' <em>(awaiting confirmation)</em>' : ''}</td>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee\">${esc(a.PractitionerName)}</td>\n      <td style=\"padding:8px 12px;border-bottom:1px solid #eee\">${esc(a.LocationName)}</td>\n    </tr>`).join('');\n  const more = appts.length > 40 ? `<p>…and ${appts.length - 40} more.</p>` : '';\n\n  const html = `<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#222;line-height:1.5\">\n  <p>Hi ${first},</p>\n  <p>Here ${appts.length === 1 ? 'is your upcoming appointment' : `are your ${appts.length} upcoming appointments`} with ${esc(s.practiceName)}:</p>\n  <table style=\"border-collapse:collapse;font-size:14px\">\n    <tr style=\"text-align:left;background:#f5f5f5\">\n      <th style=\"padding:8px 12px\">Date</th><th style=\"padding:8px 12px\">Time</th><th style=\"padding:8px 12px\">Visit</th><th style=\"padding:8px 12px\">With</th><th style=\"padding:8px 12px\">Location</th>\n    </tr>${lines}\n  </table>${more}\n  <p>If anything looks wrong or you need to make a change, please call us at ${esc(s.practicePhone)} or reply to this email.</p>\n  <p>See you soon,<br>${esc(s.practiceName)}</p>\n</div>`;\n\n  const subject = `Your upcoming appointments at ${s.practiceName}`;\n  out.push({\n    json: {\n      ...c,\n      to,\n      count: appts.length,\n      subject: live ? subject : `[TEST for ${c.name} <${c.email}>] ${subject}`,\n      html,\n    },\n  });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "summary-ghl-contact",
+      "name": "Find GHL contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GHL Private Integration (Bearer)"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ locationId: $('Settings').first().json.ghlLocationId, email: $json.to }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "summary-ghl-send",
+      "name": "Send email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GHL Private Integration (Bearer)"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-04-15"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ type: 'Email', contactId: $json.contact && $json.contact.id, subject: $('Build emails').item.json.subject, html: $('Build emails').item.json.html }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "summary-finish",
+      "name": "Record results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Code node \"Record results\" (run once for all items).\n// Input: the GHL send responses, one per \"Build emails\" item in the same order (the send\n// nodes continue on error, so a failure is an item with an `error` field).\n// A failed send is retried 10 minutes later, up to 3 attempts in total. Output is a log line\n// per email, visible in the n8n execution.\nconst state = $getWorkflowStaticData('global');\nstate.pending = state.pending || {};\nconst emails = $('Build emails').all().map((i) => i.json);\nconst results = $input.all().map((i) => i.json);\nconst MAX_ATTEMPTS = 3;\n\nreturn emails.map((c, i) => {\n  const r = results[i] || { error: 'no response' };\n  const base = { clientId: c.clientId, to: c.to, appointments: c.count };\n  if (!r.error) return { json: { ...base, status: 'sent', messageId: r.messageId || r.emailMessageId || null } };\n\n  const attempts = (c.attempts || 0) + 1;\n  const key = String(c.clientId);\n  const retry = attempts < MAX_ATTEMPTS;\n  if (retry && !state.pending[key]) {\n    state.pending[key] = { clientId: c.clientId, email: c.email, name: c.name, dueAt: Date.now() + 10 * 60000, attempts };\n  }\n  const error = typeof r.error === 'string' ? r.error : (r.error.message || JSON.stringify(r.error));\n  return { json: { ...base, status: retry ? 'failed, will retry' : 'failed, gave up', attempts, error } };\n});\n"
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Get changed appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get changed appointments": {
+      "main": [
+        [
+          {
+            "node": "Queue bookings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue bookings": {
+      "main": [
+        [
+          {
+            "node": "Get upcoming",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get upcoming": {
+      "main": [
+        [
+          {
+            "node": "Build emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build emails": {
+      "main": [
+        [
+          {
+            "node": "Find GHL contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find GHL contact": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email": {
+      "main": [
+        [
+          {
+            "node": "Record results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
