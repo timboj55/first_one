@@ -33,6 +33,7 @@ const queue = json(node('queue.js'));
 const buildRaw = node('build-pdfs.js');
 const build = json(buildRaw);
 const finish = json(node('finish.js'));
+const pickOld = json(node('replace.js'));
 
 function pdfToText(item) {
   const file = join(mkdtempSync(join(tmpdir(), 'summary-')), 'out.pdf');
@@ -117,6 +118,7 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
   assert.equal(item.json.count, 3);
   assert.equal(item.json.uploadTo, '999', 'test mode uploads to the test client');
   assert.equal(item.json.fileName, 'TEST - Jane Doe - Upcoming appointments 2026-10-01.pdf');
+  assert.equal(item.json.filePrefix, 'TEST - Jane Doe - Upcoming appointments ');
   assert.equal(item.binary.data.mimeType, 'application/pdf');
 
   const { text, pages } = pdfToText(item);
@@ -158,13 +160,47 @@ test('failed uploads are retried twice, then given up', () => {
     { clientId: 9, email: 'sam@example.com', name: 'Sam', uploadTo: 9, count: 1, attempts: 0 },
   ];
   const out = finish({
-    input: [{ error: { message: '429' } }, { error: 'not found' }, { Id: 'f1' }],
-    nodes: { 'Build PDFs': pdfs }, state, now: T0,
+    nodes: { 'Build PDFs': pdfs, 'Upload to client file': [{ error: { message: '429' } }, { error: 'not found' }, { Id: 'f1' }] }, state, now: T0,
   });
   assert.deepEqual(out.map((r) => r.status), ['failed, will retry', 'failed, gave up', 'uploaded']);
   assert.deepEqual(Object.keys(state.pending), ['7']);
   assert.equal(state.pending['7'].attempts, 1);
   assert.equal(state.pending['7'].dueAt, T0 + 10 * MIN);
+});
+
+test('older summaries are deleted only after the new one uploads', () => {
+  const pdfs = [
+    { uploadTo: 7, filePrefix: 'Upcoming appointments ' },
+    { uploadTo: 8, filePrefix: 'Upcoming appointments ' }, // upload failed
+    { uploadTo: 9, filePrefix: 'Upcoming appointments ' }, // list failed
+    { uploadTo: 999, filePrefix: 'TEST - Jane (Doe) - Upcoming appointments ' },
+  ];
+  const files7 = [
+    { Id: 'new', FileName: 'Upcoming appointments 2026-10-01.pdf' },
+    { Id: 'old1', FileName: 'Upcoming appointments 2026-09-20.pdf' },
+    { Id: 'same-day', FileName: 'Upcoming appointments 2026-10-01.pdf' },
+    { Id: 'intake', FileName: 'Intake form.pdf' },
+    { Id: 'copy', FileName: 'Upcoming appointments 2026-09-20 (signed).pdf' },
+    { Id: 'staff', FileName: 'Old upcoming appointments 2026-09-01.pdf' },
+  ];
+  const files999 = [
+    { Id: 't-new', FileName: 'TEST - Jane (Doe) - Upcoming appointments 2026-10-01.pdf' },
+    { Id: 't-old', FileName: 'TEST - Jane (Doe) - Upcoming appointments 2026-09-30.pdf' },
+    { Id: 't-other', FileName: 'TEST - Bob - Upcoming appointments 2026-09-30.pdf' },
+  ];
+  const out = pickOld({
+    nodes: {
+      'Build PDFs': pdfs,
+      'Upload to client file': [{ Id: 'new' }, { error: 'boom' }, { Id: 'n9' }, { Id: 't-new' }],
+      'List client files': [
+        { body: JSON.stringify(files7) },
+        { body: JSON.stringify([{ Id: 'x', FileName: 'Upcoming appointments 2026-09-01.pdf' }]) },
+        { error: { message: '500' } },
+        { body: JSON.stringify(files999) },
+      ],
+    },
+  });
+  assert.deepEqual(out.map((r) => [r.clientId, r.fileId]), [[7, 'old1'], [7, 'same-day'], [999, 't-old']]);
 });
 
 test('workflow.json is up to date with the Code node sources', () => {
@@ -173,5 +209,6 @@ test('workflow.json is up to date with the Code node sources', () => {
   assert.equal(code['Queue bookings'], readFileSync(join(here, 'queue.js'), 'utf8'));
   assert.equal(code['Build PDFs'], readFileSync(join(here, 'build-pdfs.js'), 'utf8'));
   assert.equal(code['Record results'], readFileSync(join(here, 'finish.js'), 'utf8'));
+  assert.equal(code['Pick old summaries'], readFileSync(join(here, 'replace.js'), 'utf8'));
   assert.equal(wf.active, false);
 });

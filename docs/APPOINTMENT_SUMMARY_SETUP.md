@@ -14,11 +14,12 @@ commit `37d6772` if email is wanted later.)
 Every 5 minutes -> Settings -> Get changed appointments (PracticeQ, updated since yesterday)
   -> Queue bookings (new booking? start/extend 30-min timer; whose timer ran out?)
   -> Get upcoming (PracticeQ, that client, from today) -> Build PDFs
-  -> Upload to client file (POST /files/{clientId}) -> Record results (retry failures)
+  -> Upload to client file (POST /files/{clientId}) -> List client files
+  -> Record results (retry failures) -> Pick old summaries -> Delete old summary
 ```
 
-Source: `n8n/appointment-summary/` (`queue.js`, `build-pdfs.js`, `finish.js` are the Code
-nodes; `build.mjs` writes `workflow.json`; `node --test n8n/appointment-summary/test.mjs` runs
+Source: `n8n/appointment-summary/` (`queue.js`, `build-pdfs.js`, `finish.js`, `replace.js`
+are the Code nodes; `build.mjs` writes `workflow.json`; `node --test n8n/appointment-summary/test.mjs` runs
 the tests, which need `pdftotext`/`pdfinfo` from poppler).
 
 ## What counts as a booking
@@ -34,8 +35,13 @@ the tests, which need `pdftotext`/`pdfinfo` from poppler).
   now on (the latter marked "(pending)"), with date, time, visit type, provider, location.
   If everything was cancelled during the wait, nothing is uploaded.
 
-The file is named `Upcoming appointments YYYY-MM-DD.pdf`. Each booking round adds a new file;
-older ones are kept (nothing is deleted from patient records), so the newest date is current.
+The file is named `Upcoming appointments YYYY-MM-DD.pdf`, and it **replaces** the patient's
+previous summary: once the new PDF has uploaded, older files named exactly
+`Upcoming appointments <date>.pdf` in that patient's Files are deleted. Nothing else is ever
+deleted (a renamed copy such as `Upcoming appointments 2026-09-20 (signed).pdf` is left
+alone). If the upload or the file list fails, nothing is deleted, so a patient always has at
+least one summary. In test mode only the test client's `TEST - <patient> - ...` files are
+replaced.
 
 ## Setup (about 10 minutes)
 
@@ -46,8 +52,9 @@ older ones are kept (nothing is deleted from patient records), so the newest dat
    `PracticeQ API (X-Auth-Key)`: Name `X-Auth-Key`, Value = your existing PracticeQ API key.
    **Do not generate a new key in PracticeQ.** Only one key can be active, and a new one
    breaks the cockpit (Secret Manager `cockpit-intakeq-key`) and anything else using the
-   current key. Copy the current value instead. Pick this credential on "Get changed
-   appointments", "Get upcoming" and "Upload to client file".
+   current key. Copy the current value instead. Pick this credential on all five
+   PracticeQ steps ("Get changed appointments", "Get upcoming", "Upload to client file",
+   "List client files", "Delete old summary").
 
 3. **Test client.** In PracticeQ, create a dummy client (e.g. "Test Patient") and note its
    client id (the number in the URL of its profile).
@@ -75,9 +82,12 @@ portal on your account; that is a PracticeQ setting, not something this workflow
 
 ## Operating notes
 
-- **Load on PracticeQ:** about 1 call every 5 minutes, plus 2 per PDF (fetch + upload), paced
-  3.5 s apart. Your account allows 20 a minute, shared with the cockpit and the existing
-  workflow. This is the first automation that *writes* to PracticeQ (file uploads only).
+- **Load on PracticeQ:** each 5-minute check reads every appointment changed since yesterday,
+  100 per call, so 1 to a few calls per check: roughly 300 to 1,000 a day depending on how busy
+  the schedule is. Each PDF adds 4 calls (fetch, upload, list, delete), paced 3.5 s apart.
+  Your account allows 20 a minute (no daily cap), shared with the cockpit and the existing
+  workflow. This is the first automation that *writes* to PracticeQ: it uploads files and
+  deletes only its own earlier summary files.
 - **Failures:** a failed upload is retried after 10 minutes, 3 attempts in total. Every run
   logs one line per PDF in "Record results" (`uploaded`, `failed, will retry`,
   `failed, gave up`). If PracticeQ is down during the fetch, the run errors and the next run
@@ -94,6 +104,6 @@ portal on your account; that is a PracticeQ setting, not something this workflow
 PracticeQ sends appointment events to one webhook URL only, and that slot is used by the
 "IntakeQ Appointments -> GHL" workflow. Triggering on booking would mean adding a forwarding
 step to that workflow, plus shared storage (an n8n Data Table) so separate trigger runs can
-agree on whose 30-minute timer is the latest. With a 30-minute buffer, the timer decides the
-upload time either way, so a trigger would save at most 5 minutes. Polling costs about 300
-small API calls a day.
+agree on whose 30-minute timer is the latest. A trigger would use far fewer API calls (only
+the 4 per PDF, none for checking), but with a 30-minute buffer it would file the PDF at most
+5 minutes sooner, and the polling load is within the account's limit.

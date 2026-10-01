@@ -95,8 +95,36 @@ const nodes = [
     },
   },
   {
-    id: 'summary-finish', name: 'Record results', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1540, 0],
+    id: 'summary-list-files', name: 'List client files', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2,
+    position: [1540, 0], onError: 'continueRegularOutput', retryOnFail: true, maxTries: 2, waitBetweenTries: 5000,
+    credentials: IQ,
+    parameters: {
+      url: 'https://intakeq.com/api/v1/files', ...auth,
+      sendQuery: true,
+      queryParameters: { parameters: [{ name: 'clientId', value: "={{ $('Build PDFs').item.json.uploadTo }}" }] },
+      options: {
+        // Text keeps one output item per client (a JSON array would be split into items).
+        response: { response: { responseFormat: 'text', outputPropertyName: 'body' } },
+        batching: { batch: { batchSize: 1, batchInterval: 3500 } },
+      },
+    },
+  },
+  {
+    id: 'summary-finish', name: 'Record results', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1760, 0],
     parameters: { jsCode: src('finish.js') },
+  },
+  {
+    id: 'summary-pick-old', name: 'Pick old summaries', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1980, 0],
+    parameters: { jsCode: src('replace.js') },
+  },
+  {
+    id: 'summary-delete-old', name: 'Delete old summary', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2,
+    position: [2200, 0], onError: 'continueRegularOutput',
+    credentials: IQ,
+    parameters: {
+      method: 'DELETE', url: '=https://intakeq.com/api/v1/files/{{ $json.fileId }}', ...auth,
+      options: { batching: { batch: { batchSize: 1, batchInterval: 3500 } } },
+    },
   },
 ];
 

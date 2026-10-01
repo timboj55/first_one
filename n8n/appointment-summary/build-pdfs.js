@@ -94,9 +94,11 @@ for (const c of due) {
 
   const uploadTo = live ? c.clientId : s.testClientId;
   if (!uploadTo) continue;
-  const fileName = `${live ? '' : `TEST - ${String(c.name).replace(/[\\/:*?"<>|]/g, '')} - `}Upcoming appointments ${today}.pdf`;
+  // Earlier summaries for the same patient share the prefix and are replaced after upload.
+  const filePrefix = `${live ? '' : `TEST - ${String(c.name).replace(/[\\/:*?"<>|]/g, '')} - `}Upcoming appointments `;
+  const fileName = `${filePrefix}${today}.pdf`;
   out.push({
-    json: { ...c, uploadTo, count: appts.length, fileName },
+    json: { ...c, uploadTo, count: appts.length, fileName, filePrefix },
     binary: { data: { data: schedulePdf(c, appts).toString('base64'), mimeType: 'application/pdf', fileName, fileExtension: 'pdf' } },
   });
 }
