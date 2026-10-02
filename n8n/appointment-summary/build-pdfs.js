@@ -45,7 +45,7 @@ function makePdf(pages) {
 
 const text = (x, y, size, str, bold) => `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x} ${y} Td (${pdfText(str)}) Tj ET\n`;
 const rule = (y) => `0.8 G 0.5 w 50 ${y} m 562 ${y} l S\n`;
-const COLS = [[50, 'Date', 19], [150, 'Time', 10], [212, 'Visit', 33], [380, 'With', 21], [490, 'Location', 14]];
+const COLS = [[50, 'Date', 19], [160, 'Time', 10], [230, 'Visit', 42], [440, 'Location', 22]];
 
 function schedulePdf(c, appts) {
   const pages = [];
@@ -69,7 +69,7 @@ function schedulePdf(c, appts) {
     const cells = [
       fmt(a.StartDate, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
       fmt(a.StartDate, { hour: 'numeric', minute: '2-digit' }),
-      visit, a.PractitionerName, a.LocationName,
+      visit, a.LocationName,
     ];
     COLS.forEach(([x, , n], i) => { page += text(x, y, 10, clip(cells[i], n)); });
     y -= 6; page += rule(y); y -= 16;

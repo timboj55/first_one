@@ -52,7 +52,7 @@ only files PDFs during **business hours plus one hour** after closing.
   `businessHours`, `afterCloseMinutes` or `holidays` there.
 
 **The PDF:** that patient's Confirmed and Waiting Confirmation appointments from now on (the
-latter marked "(pending)"), with date, time, visit type, provider and location, named
+latter marked "(pending)"), with date, time, visit type and location (no provider), named
 `Upcoming appointments YYYY-MM-DD.pdf`. If everything was cancelled during the wait, nothing
 is uploaded.
 

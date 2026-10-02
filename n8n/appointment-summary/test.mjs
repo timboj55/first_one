@@ -172,7 +172,8 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
   assert.equal(pages, 1);
   assert.match(text, /Upcoming appointments/);
   assert.match(text, /Patient: Jane Doe/);
-  assert.match(text, /Fri, Oct 2, 2026\s+10:00 AM\s+Follow-up\s+Dr\. A\s+Main/);
+  assert.match(text, /Fri, Oct 2, 2026\s+10:00 AM\s+Follow-up\s+Main/);
+  assert.doesNotMatch(text, /Dr\. A|With/, "no provider on the PDF");
   assert.match(text, /Follow-up \(pending\)/);
   assert.match(text, /Later \(visit\) - récheck/);
   assert.doesNotMatch(text, /Cancelled one|Past one|Someone else/);
