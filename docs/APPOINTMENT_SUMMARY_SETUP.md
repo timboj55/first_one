@@ -152,7 +152,7 @@ portal on your account; that is a PracticeQ setting, not something this workflow
 
 - Data table `booking_summary_queue` created (id `kBtcS2vdYqN6CKt1`).
 - Workflow "PracticeQ booking summary PDF" imported (id `QTVvGJf02pD6Rb4Z`), **active in test mode**:
-  `testClientId` 2425, `practicePhone` (864) 558-7346.
+  `testClientId` 2425, `practicePhone` (864) 558-7346, `bufferMinutes` 5 (changed from 30 at the owner's request; with the 5-minute sweep a summary lands 5-10 minutes after the last change).
 - Differences from the steps above: the four PracticeQ steps reuse the existing n8n credential
   "IQ Authorization" (the one "IntakeQ Appointments -> GHL" uses), and "Appointment event" uses a
   secret random webhook path with no auth, like the existing PracticeQ webhook. So no

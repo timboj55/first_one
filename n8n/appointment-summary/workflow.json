@@ -108,7 +108,7 @@
             {
               "id": "setting-bufferMinutes",
               "name": "bufferMinutes",
-              "value": 30,
+              "value": 5,
               "type": "number"
             },
             {

@@ -49,7 +49,7 @@ const nodes = [
         assignments: [
           setting('mode', 'test'),
           setting('testClientId', 'CHANGE-ME'),
-          setting('bufferMinutes', 30, 'number'),
+          setting('bufferMinutes', 5, 'number'),
           setting('timezone', 'America/New_York'),
           setting('businessHours', businessHours),
           setting('afterCloseMinutes', 60, 'number'),
