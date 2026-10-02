@@ -147,3 +147,18 @@ portal on your account; that is a PracticeQ setting, not something this workflow
   then paste the file into the "Build PDFs" node (or re-import).
 - **Email version:** an earlier version emailed the list through GHL instead; it is in git
   history at commit `37d6772`.
+
+## Live setup (done 2026-10-02)
+
+- Data table `booking_summary_queue` created (id `kBtcS2vdYqN6CKt1`).
+- Workflow "PracticeQ booking summary PDF" imported (id `QTVvGJf02pD6Rb4Z`), **active in test mode**:
+  `testClientId` 2425, `practicePhone` (864) 558-7346.
+- Differences from the steps above: the four PracticeQ steps reuse the existing n8n credential
+  "IQ Authorization" (the one "IntakeQ Appointments -> GHL" uses), and "Appointment event" uses a
+  secret random webhook path with no auth, like the existing PracticeQ webhook. So no
+  "Booking summary webhook key" or new PracticeQ credential exists.
+- "IntakeQ Appointments -> GHL" (id `udqmSYwWyreYJ6IO`) gained one node, "Forward to booking
+  summary", wired from its Webhook node as a second branch, continue-on-error. Its other 10 nodes
+  and settings are unchanged. To undo: delete that node in the editor.
+- Still to do: test, then set `mode` = `live`; remove the write scopes from the
+  "Claude cloud - setup" n8n API key.
