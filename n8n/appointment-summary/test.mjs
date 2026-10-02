@@ -153,7 +153,7 @@ test('after-hours bookings wait for the next opening', () => {
 test('PDF lists only that client\'s open future appointments, in order', () => {
   const due = [{ clientId: 7, email: 'jane@example.com', name: 'Jane Doe', attempts: 0 }];
   const rows = [
-    appt({ Id: 'late', StartDate: T0 + 9 * DAY, ServiceName: 'Later (visit) – récheck' }),
+    appt({ Id: 'late', StartDate: T0 + 9 * DAY }),
     appt({ Id: 'soon', StartDate: T0 + DAY }),
     appt({ Id: 'soon', StartDate: T0 + DAY }), // duplicate row
     appt({ Id: 'pend', StartDate: T0 + 2 * DAY, Status: 'WaitingConfirmation' }),
@@ -172,10 +172,10 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
   assert.equal(pages, 1);
   assert.match(text, /Upcoming appointments/);
   assert.match(text, /Patient: Jane Doe/);
-  assert.match(text, /Fri, Oct 2, 2026\s+10:00 AM\s+Follow-up\s+Main/);
-  assert.doesNotMatch(text, /Dr\. A|With/, "no provider on the PDF");
-  assert.match(text, /Follow-up \(pending\)/);
-  assert.match(text, /Later \(visit\) - récheck/);
+  assert.match(text, /Date\s+Time\n/);
+  assert.match(text, /Fri, Oct 2, 2026\s+10:00 AM\n/);
+  assert.doesNotMatch(text, /Dr\. A|With|Follow-up|Visit|Main|Location/, 'no provider, visit type or location');
+  assert.match(text, /Sat, Oct 3, 2026\s+10:00 AM \(pending confirmation\)/);
   assert.doesNotMatch(text, /Cancelled one|Past one|Someone else/);
   assert.ok(text.indexOf('Oct 2,') < text.indexOf('Oct 3,') && text.indexOf('Oct 3,') < text.indexOf('Oct 10,'));
   assert.match(text, /3 upcoming appointments\. If anything looks wrong, please call us at 555-0100\./);
@@ -186,13 +186,14 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
 });
 
 test('long schedules continue on a second page', () => {
-  const due = [{ clientId: 7, name: 'Jane Doe' }];
+  const due = [{ clientId: 7, name: 'Zoë (Test) – O’Neil' }];
   const rows = Array.from({ length: 40 }, (_, i) => appt({ Id: `p${i}`, StartDate: T0 + (i + 1) * DAY }));
   const [item] = buildRaw({ input: rows, nodes: { 'Keep due': due }, now: T0 });
   const { text, pages } = pdfToText(item);
   assert.equal(pages, 2);
-  assert.equal((text.match(/Follow-up/g) || []).length, 40);
+  assert.equal((text.match(/[A-Z][a-z]{2}, [A-Z][a-z]{2} \d+, 2026/g) || []).length, 40); // one per row
   assert.match(text, /40 upcoming appointments/);
+  assert.match(text, /Patient: Zoë \(Test\) - O'Neil/, 'accents kept, parentheses escaped, dashes/quotes simplified');
 });
 
 test('no PDF when everything was cancelled', () => {
