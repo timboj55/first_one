@@ -31,10 +31,12 @@
   "invoice_statuses": ["Paid", "Unpaid", "PastDue"],
   "procedure_descriptions": {
     "97162": "PT Evaluation, Moderate Complexity",
+    "97164": "PT Re-evaluation",
     "97530": "Therapeutic Activity"
   },
   "service_defaults": {
     "Initial Consultation": {"cpt": "97162", "units": 1, "description": "PT Evaluation, Moderate Complexity"},
+    "Re-Evaluation": {"cpt": "97164", "units": 1, "description": "PT Re-evaluation"},
     "*": {"cpt": "97530", "units": 4, "description": "Therapeutic Activity"}
   },
   "file": {

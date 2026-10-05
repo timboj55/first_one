@@ -214,6 +214,16 @@ class BuildTests(unittest.TestCase):
         self.assertAlmostEqual(data.provider_discount, 1191.0, places=2)
         self.assertEqual(data.balance, 0.0)
 
+    def test_re_evaluation_coded_97164_and_contact_formatting(self):
+        prof = dict(PROFILE, StreetAddress=None, City=None, StateShort=None, PostalCode=None,
+                    Address="312 Blue Rock Ct, Travelers Rest, SC  29690", MobilePhone="8044844782")
+        api, _ = make([appt(date(2026, 9, 16), procedures=[], service="Re-Evaluation")], [], profile=prof)
+        data = build_superbill(api, 101, self.cfg, now=NOW)
+        self.assertEqual(data.lines[0].procedure_label(), "97164")
+        self.assertEqual(data.lines[0].description, "PT Re-evaluation")
+        self.assertEqual(data.client_phone, "(804) 484-4782")
+        self.assertEqual(data.client_address, "312 Blue Rock Ct, Travelers Rest, SC 29690")
+
     def test_zero_price_list_price_can_be_turned_off(self):
         cfg = dict(self.cfg, zero_price_uses_list_price=False)
         api, _ = make([appt(date(2026, 8, 3), price=97.0, procedures=[]), appt(date(2026, 8, 5), price=0, procedures=[])], [])

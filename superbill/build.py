@@ -272,7 +272,18 @@ def _address(profile: Dict[str, Any]) -> str:
     city = ", ".join(str(p) for p in (profile.get("City"), profile.get("StateShort")) if p)
     line2 = " ".join(str(p) for p in (city, profile.get("PostalCode")) if p)
     joined = ", ".join(p for p in (line1, line2) if p)
-    return joined or str(profile.get("Address") or "")
+    return re.sub(r"\s+", " ", joined or str(profile.get("Address") or "")).strip()
+
+
+def format_phone(value: Any) -> str:
+    """(864) 555-0100 for 10-digit US numbers (or 11 starting with 1); anything else as stored."""
+    raw = str(value or "").strip()
+    digits = re.sub(r"\D", "", raw)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+    return raw
 
 
 def _item_amount(item: Dict[str, Any]) -> float:
@@ -423,7 +434,7 @@ def build_superbill(
         client_name=name,
         client_dob=dob,
         client_address=_address(profile),
-        client_phone=str(profile.get("MobilePhone") or profile.get("Phone") or last.get("ClientPhone") or ""),
+        client_phone=format_phone(profile.get("MobilePhone") or profile.get("Phone") or last.get("ClientPhone")),
         client_email=str(profile.get("Email") or last.get("ClientEmail") or ""),
         diagnosis_codes=dx_codes,
         provider=provider_for(last, cfg),
