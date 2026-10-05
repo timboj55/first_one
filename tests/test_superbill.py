@@ -176,7 +176,7 @@ class BuildTests(unittest.TestCase):
 
     def test_prepaid_package_is_prorated_to_visits_used(self):
         appts = [
-            appt(date(2026, 8, 3), price=97.0, procedures=[], service="Initial Consultation"),
+            dict(appt(date(2026, 8, 3), price=97.0, procedures=[], service="Initial Consultation"), InvoiceId="inv-1"),
             appt(date(2026, 8, 5), price=0, procedures=[], service="Follow-Up"),
             appt(date(2026, 8, 7), price=0, procedures=[], service="Follow-Up"),
         ]
@@ -194,6 +194,25 @@ class BuildTests(unittest.TestCase):
         self.assertAlmostEqual(data.provider_discount, 895.0 - data.total_billed, places=2)
         self.assertEqual(data.balance, 0.0)
         self.assertEqual(data.invoice_numbers, [1, 2])
+
+    def test_package_visits_booked_at_list_price_are_prorated(self):
+        # PracticeQ keeps $399 on some package visits; no invoice of their own marks them as package-covered.
+        appts = [dict(appt(date(2026, 8, 18), price=97.0, procedures=[], service="Initial Consultation"), InvoiceId="inv-1")]
+        for i, d in enumerate([20, 21, 24, 26, 27, 28, 29, 30, 31]):
+            appts.append(appt(date(2026, 8, d), price=399.0 if i % 2 == 0 else 0, procedures=[], service="Follow-Up"))
+        appts.append(appt(date(2026, 9, 1), price=399.0, procedures=[], service="Follow-Up"))
+        invoices = [
+            {"Number": 5158, "Status": "Paid", "TotalAmount": 97.0, "AmountPaid": 97.0, "IssuedDate": ms(date(2026, 8, 17)),
+             "Items": [{"Description": "Initial Consultation", "Units": 1, "Price": 97.0, "TotalAmount": 97.0}]},
+            {"Number": 5163, "Status": "Paid", "TotalAmount": 5598.0, "AmountPaid": 5598.0, "IssuedDate": ms(date(2026, 8, 18)),
+             "Items": [{"Description": "20-Visit Package", "Units": 1, "Price": 7980.0, "TotalAmount": 5598.0}]},
+        ]
+        api, _ = make(appts, invoices)
+        data = build_superbill(api, 101, self.cfg, now=NOW)
+        self.assertEqual(data.total_charges, 4087.0)
+        self.assertAlmostEqual(data.total_billed, 2896.0, places=2)
+        self.assertAlmostEqual(data.provider_discount, 1191.0, places=2)
+        self.assertEqual(data.balance, 0.0)
 
     def test_zero_price_list_price_can_be_turned_off(self):
         cfg = dict(self.cfg, zero_price_uses_list_price=False)
