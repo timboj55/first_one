@@ -372,8 +372,9 @@ def build_superbill(
         list_prices = api.service_list_prices()
 
     lines: List[Line] = []
-    # Visits covered by a prepaid package: booked at $0, or carrying no invoice of their own.
-    # PracticeQ often keeps the list price on package visits, so price alone misses them.
+    # Visits covered by a prepaid package are the charged visits with no invoice of their own.
+    # Price is not a reliable signal: PracticeQ keeps the list price on some package visits, and
+    # a waived visit (e.g. a free initial consultation) is $0 but has its own $0 invoice.
     package_visits = 0
     for a in completed:
         start = appointment_start(a, tz)
@@ -383,7 +384,7 @@ def build_superbill(
         charge = charge_for(a, list_prices)
         if charge <= 0 and not cfg.get("include_zero_charge"):
             continue
-        if charge > 0 and (charge_for(a) <= 0 or not a.get("InvoiceId")):
+        if charge > 0 and not a.get("InvoiceId"):
             package_visits += 1
         lines.append(Line(start.date(), description_for(a, procs, cfg), procs, charge, str(a.get("Id") or "")))
     if not lines:

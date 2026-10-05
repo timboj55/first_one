@@ -214,6 +214,26 @@ class BuildTests(unittest.TestCase):
         self.assertAlmostEqual(data.provider_discount, 1191.0, places=2)
         self.assertEqual(data.balance, 0.0)
 
+    def test_waived_visit_with_own_invoice_is_not_a_package_visit(self):
+        # Free consult: $0 price, its own $0 invoice. Only the two un-invoiced follow-ups use the package.
+        appts = [
+            dict(appt(date(2026, 9, 28), price=0, procedures=[], service="Initial Consultation"), InvoiceId="inv-0"),
+            appt(date(2026, 9, 29), price=399.0, procedures=[], service="Follow-Up"),
+            appt(date(2026, 9, 29) + timedelta(days=1), price=0, procedures=[], service="Follow-Up"),
+        ]
+        invoices = [
+            {"Number": 5237, "Status": "Paid", "TotalAmount": 0.0, "AmountPaid": 0.0, "IssuedDate": ms(date(2026, 9, 28)),
+             "Items": [{"Description": "Initial Consultation", "Units": 1, "Price": 0.0, "TotalAmount": 0.0}]},
+            {"Number": 5232, "Status": "Paid", "TotalAmount": 2592.0, "AmountPaid": 2592.0, "IssuedDate": ms(date(2026, 9, 28)),
+             "Items": [{"Description": "8-Visit Package", "Units": 1, "Price": 3192.0, "TotalAmount": 2592.0}]},
+        ]
+        api, _ = make(appts, invoices)
+        data = build_superbill(api, 101, self.cfg, now=NOW)
+        # the test price list has no Initial Consultation price, so the $0 consult is left off
+        self.assertEqual(data.total_charges, 399.0 + 399.0)
+        self.assertAlmostEqual(data.total_billed, 2592.0 / 8 * 2, places=2)
+        self.assertAlmostEqual(data.provider_discount, 798.0 - 648.0, places=2)
+
     def test_re_evaluation_coded_97164_and_contact_formatting(self):
         prof = dict(PROFILE, StreetAddress=None, City=None, StateShort=None, PostalCode=None,
                     Address="312 Blue Rock Ct, Travelers Rest, SC  29690", MobilePhone="8044844782")
