@@ -168,3 +168,7 @@ portal on your account; that is a PracticeQ setting, not something this workflow
   that client so the 8:00 sweep files her summary.
 - 2026-10-06: **gone live** (`mode` = `live`) at the owner's request. Every patient's summary now
   goes to their own PracticeQ file. `liveClientIds` no longer matters while live.
+- 2026-10-06: added "Check lookups". If PracticeQ returns no appointments at all for a due
+  patient (usually a missing or changed email), the run fails with the patient named, and the
+  workflow's error workflow "Error Trigger (TV)" (the same one "IntakeQ Appointments -> GHL" uses)
+  sends its email. Patients whose appointments were all cancelled still skip quietly.
