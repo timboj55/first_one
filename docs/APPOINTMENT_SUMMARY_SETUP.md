@@ -166,3 +166,5 @@ portal on your account; that is a PracticeQ setting, not something this workflow
   `mode` = `test`, these patients already get real PDFs in their own file; everyone else still
   goes to the test client. Set to `3327` at the owner's request, and a queue row was added for
   that client so the 8:00 sweep files her summary.
+- 2026-10-06: **gone live** (`mode` = `live`) at the owner's request. Every patient's summary now
+  goes to their own PracticeQ file. `liveClientIds` no longer matters while live.
