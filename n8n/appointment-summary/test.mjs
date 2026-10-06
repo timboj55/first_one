@@ -40,6 +40,7 @@ const hours = json(node('hours.js'));
 const duePatients = json(node('due.js'));
 const keepDue = json(node('keep-due.js'));
 const retries = json(node('retries.js'));
+const checkLookups = node('lookups.js');
 const buildRaw = node('build-pdfs.js');
 const build = json(buildRaw);
 const finish = json(node('finish.js'));
@@ -286,12 +287,26 @@ test('without an Id in the upload reply, the newest file is kept (PracticeQ beha
   assert.deepEqual(run({}, { body: 'not json' }), []);
 });
 
+test('a patient PracticeQ returns nothing for fails the run; all-cancelled does not', () => {
+  const due = [
+    { clientId: '7', name: 'Jane Doe', email: 'jane@example.com' },
+    { clientId: '8', name: 'Bob Roe', email: 'bob@example.com' },
+  ];
+  const ok = [appt({ ClientId: 7 }), appt({ ClientId: 8, Status: 'Canceled' })];
+  assert.deepEqual(checkLookups({ input: ok, nodes: { 'Keep due': due }, now: T0 }), []);
+  assert.throws(
+    () => checkLookups({ input: [appt({ ClientId: 7 })], nodes: { 'Keep due': [...due, { clientId: '9', name: 'Ann Lee', email: '' }] }, now: T0 }),
+    /client 8 \(Bob Roe\); client 9 \(Ann Lee, no email on file\)/,
+  );
+  assert.throws(() => checkLookups({ input: [{}], nodes: { 'Keep due': due.slice(0, 1) }, now: T0 }), /client 7/);
+});
+
 test('workflow.json is up to date with the Code node sources', () => {
   const wf = JSON.parse(readFileSync(join(here, 'workflow.json'), 'utf8'));
   const code = Object.fromEntries(wf.nodes.filter((n) => n.parameters.jsCode).map((n) => [n.name, n.parameters.jsCode]));
   assert.equal(code['Build PDFs'], readFileSync(join(here, 'build-pdfs.js'), 'utf8'));
   for (const [name, file] of [['Classify event', 'classify.js'], ['Business hours?', 'hours.js'], ['Due patients', 'due.js'],
-    ['Keep due', 'keep-due.js'], ['Retries', 'retries.js']]) {
+    ['Keep due', 'keep-due.js'], ['Retries', 'retries.js'], ['Check lookups', 'lookups.js']]) {
     assert.equal(code[name], readFileSync(join(here, file), 'utf8'));
   }
   assert.equal(code['Record results'], readFileSync(join(here, 'finish.js'), 'utf8'));

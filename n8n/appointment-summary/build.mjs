@@ -86,7 +86,7 @@ const nodes = [
   code('summary-keep-due', 'Keep due', 'keep-due.js', [1320, 0]),
   {
     id: 'summary-get-upcoming', name: 'Get upcoming', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2,
-    position: [1540, 0], retryOnFail: true, maxTries: 3, waitBetweenTries: 5000,
+    position: [1540, 0], alwaysOutputData: true, retryOnFail: true, maxTries: 3, waitBetweenTries: 5000,
     credentials: IQ,
     parameters: {
       url: 'https://intakeq.com/api/v1/appointments', ...auth,
@@ -136,6 +136,8 @@ const nodes = [
     parameters: { method: 'DELETE', url: '=https://intakeq.com/api/v1/files/{{ $json.fileId }}', ...auth, options: paced },
   },
   code('summary-retries', 'Retries', 'retries.js', [2640, 120]),
+  // Placed lowest so n8n runs it after the whole PDF branch (execution order v1).
+  code('summary-check-lookups', 'Check lookups', 'lookups.js', [1760, 400]),
   {
     id: 'summary-requeue', name: 'Re-queue failed', type: 'n8n-nodes-base.dataTable', typeVersion: 1.1, position: [2860, 120],
     parameters: { resource: 'row', operation: 'insert', dataTableId: QUEUE, columns: { mappingMode: 'autoMapInputData', value: null } },
@@ -146,7 +148,7 @@ const links = [
   ['Appointment event', 'Classify event'], ['Classify event', 'Add to queue'],
   ['Every 5 minutes', 'Settings'], ['Settings', 'Business hours?'], ['Business hours?', 'Read queue'],
   ['Read queue', 'Due patients'], ['Due patients', 'Remove from queue'], ['Remove from queue', 'Keep due'],
-  ['Keep due', 'Get upcoming'], ['Get upcoming', 'Build PDFs'], ['Build PDFs', 'Upload to client file'],
+  ['Keep due', 'Get upcoming'], ['Get upcoming', 'Build PDFs'], ['Get upcoming', 'Check lookups'], ['Build PDFs', 'Upload to client file'],
   ['Upload to client file', 'List client files'], ['List client files', 'Record results'],
   ['Record results', 'Pick old summaries'], ['Pick old summaries', 'Delete old summary'],
   ['Record results', 'Retries'], ['Retries', 'Re-queue failed'],
