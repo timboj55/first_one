@@ -47,6 +47,13 @@ function makePdf(pages) {
 
 const text = (x, y, size, str, bold) => `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x} ${y} Td (${pdfText(str)}) Tj ET\n`;
 const rule = (y) => `0.8 G 0.5 w 50 ${y} m 562 ${y} l S\n`;
+// Breaks text into lines of at most `width` characters (Helvetica 10pt fits ~95 across the page).
+const wrap = (v, width) => String(v || '').trim().split(/\s+/).filter(Boolean).reduce((lines, word) => {
+  const last = lines[lines.length - 1];
+  if (last !== undefined && (last + ' ' + word).length <= width) lines[lines.length - 1] = last + ' ' + word;
+  else lines.push(word);
+  return lines;
+}, []);
 const COLS = [[50, 'Date', 22], [180, 'Time', 40]];
 
 function schedulePdf(c, appts) {
@@ -78,6 +85,13 @@ function schedulePdf(c, appts) {
   y -= 10;
   if (y < 60) { pages.push(page); page = ''; y = 742; }
   page += text(50, y, 10, `${appts.length} upcoming appointment${appts.length === 1 ? '' : 's'}. If anything looks wrong, please call us at ${s.practicePhone}.`);
+  const policy = wrap(s.cancellationPolicy, 95);
+  if (policy.length) {
+    y -= 28;
+    if (y - 14 * policy.length < 50) { pages.push(page); page = ''; y = 742; }
+    page += text(50, y, 11, 'Cancellation policy', true); y -= 16;
+    for (const line of policy) { page += text(50, y, 10, line); y -= 14; }
+  }
   pages.push(page);
   return makePdf(pages);
 }
