@@ -185,6 +185,16 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
   assert.equal(live.fileName, 'Upcoming appointments 2026-10-01.pdf');
 });
 
+test('patients in liveClientIds get real PDFs while in test mode', () => {
+  const due = [{ clientId: '7', name: 'Jane Doe' }, { clientId: '8', name: 'Bob Roe' }];
+  const rows = [appt({ ClientId: 7 }), appt({ ClientId: 8 })];
+  const out = build({ input: rows, nodes: { 'Keep due': due }, now: T0, settings: { ...SETTINGS, liveClientIds: ' 7 , 12' } });
+  assert.deepEqual(out.map((o) => [o.clientId, o.uploadTo, o.fileName]), [
+    ['7', '7', 'Upcoming appointments 2026-10-01.pdf'],
+    ['8', '999', 'TEST - Bob Roe - Upcoming appointments 2026-10-01.pdf'],
+  ]);
+});
+
 test('long schedules continue on a second page', () => {
   const due = [{ clientId: 7, name: 'Zoë (Test) – O’Neil' }];
   const rows = Array.from({ length: 40 }, (_, i) => appt({ Id: `p${i}`, StartDate: T0 + (i + 1) * DAY }));

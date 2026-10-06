@@ -49,6 +49,7 @@ const nodes = [
         assignments: [
           setting('mode', 'test'),
           setting('testClientId', 'CHANGE-ME'),
+          setting('liveClientIds', ''),
           setting('bufferMinutes', 5, 'number'),
           setting('timezone', 'America/New_York'),
           setting('businessHours', businessHours),

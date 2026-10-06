@@ -162,3 +162,7 @@ portal on your account; that is a PracticeQ setting, not something this workflow
   and settings are unchanged. To undo: delete that node in the editor.
 - Still to do: test, then set `mode` = `live`; remove the write scopes from the
   "Claude cloud - setup" n8n API key.
+- 2026-10-06: added the `liveClientIds` setting (comma-separated PracticeQ client ids). While
+  `mode` = `test`, these patients already get real PDFs in their own file; everyone else still
+  goes to the test client. Set to `3327` at the owner's request, and a queue row was added for
+  that client so the 8:00 sweep files her summary.

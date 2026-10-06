@@ -8,7 +8,9 @@ const due = $('Keep due').all().map((i) => i.json);
 const rows = $input.all().map((i) => i.json).filter((r) => r && r.Id);
 const OPEN = ['Confirmed', 'WaitingConfirmation'];
 const now = Date.now();
-const live = s.mode === 'live';
+// In test mode, patients listed in `liveClientIds` (comma-separated) already get real PDFs.
+const liveIds = String(s.liveClientIds || '').split(',').map((x) => x.trim()).filter(Boolean);
+const isLive = (c) => s.mode === 'live' || liveIds.includes(String(c.clientId));
 
 const fmt = (ms, opts) => new Intl.DateTimeFormat('en-US', { timeZone: s.timezone, ...opts }).format(new Date(ms));
 const today = fmt(now, { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
@@ -91,6 +93,7 @@ for (const c of due) {
     .sort((a, b) => a.StartDate - b.StartDate);
   if (!appts.length) continue; // everything was cancelled during the wait
 
+  const live = isLive(c);
   const uploadTo = live ? c.clientId : s.testClientId;
   if (!uploadTo) continue;
   // Earlier summaries for the same patient share the prefix and are replaced after upload.
