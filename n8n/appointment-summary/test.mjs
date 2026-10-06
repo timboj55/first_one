@@ -253,6 +253,25 @@ test('older summaries are deleted only after the new one uploads', () => {
   assert.deepEqual(out.map((r) => [r.clientId, r.fileId]), [[7, 'old1'], [7, 'same-day'], [999, 't-old']]);
 });
 
+test('without an Id in the upload reply, the newest file is kept (PracticeQ behaviour seen 5 Oct)', () => {
+  const prefix = 'TEST - Joseph Wells - Upcoming appointments ';
+  const files = [
+    { Id: 'a', DateCreated: 100, FileName: `${prefix}2026-10-05.pdf` },
+    { Id: 'b', DateCreated: 300, FileName: `${prefix}2026-10-05.pdf` },
+    { Id: 'c', DateCreated: 200, FileName: `${prefix}2026-10-05.pdf` },
+    { Id: 'd', DateCreated: 400, FileName: 'TEST - Dorie Giuliano - Upcoming appointments 2026-10-05.pdf' },
+  ];
+  const run = (upload, list) => pickOld({ nodes: {
+    'Build PDFs': [{ uploadTo: '2425', filePrefix: prefix }],
+    'Upload to client file': [upload],
+    'List client files': [list],
+  } }).map((r) => r.fileId);
+  assert.deepEqual(run({}, { body: JSON.stringify(files) }), ['a', 'c']);
+  assert.deepEqual(run({ error: 'boom' }, { body: JSON.stringify(files) }), [], 'failed upload deletes nothing');
+  assert.deepEqual(run({}, { body: JSON.stringify(files.slice(0, 1)) }), [], 'a single file is never deleted');
+  assert.deepEqual(run({}, { body: 'not json' }), []);
+});
+
 test('workflow.json is up to date with the Code node sources', () => {
   const wf = JSON.parse(readFileSync(join(here, 'workflow.json'), 'utf8'));
   const code = Object.fromEntries(wf.nodes.filter((n) => n.parameters.jsCode).map((n) => [n.name, n.parameters.jsCode]));
