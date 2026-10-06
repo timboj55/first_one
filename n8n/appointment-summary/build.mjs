@@ -57,7 +57,7 @@ const nodes = [
           setting('holidays', holidays),
           setting('practiceName', 'Movement Solutions'),
           setting('practicePhone', 'CHANGE-ME'),
-          setting('cancellationPolicy', "Please give at least 24 hours' notice to cancel or reschedule. Appointments cancelled with less than 24 hours' notice, or missed, are charged the full appointment fee or, for prepaid visits, count as a used visit."),
+          setting('cancellationPolicy', "Please give at least 24 hours' notice to cancel or reschedule. Appointments cancelled with less than 24 hours' notice, or missed, are charged the full appointment fee or, for prepaid visits, count as a used visit. If you need to cancel because of illness or an emergency, please call the office at (864) 558-7346."),
         ],
       },
       options: {},

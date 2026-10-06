@@ -16,7 +16,7 @@ const DAY = 24 * 60 * MIN;
 const SETTINGS = {
   mode: 'test', testClientId: '999', bufferMinutes: 30, timezone: 'America/New_York',
   practiceName: 'Movement Solutions', practicePhone: '555-0100', afterCloseMinutes: 60,
-  cancellationPolicy: "Please give at least 24 hours' notice to cancel or reschedule. Appointments cancelled with less than 24 hours' notice, or missed, are charged the full appointment fee or, for prepaid visits, count as a used visit.",
+  cancellationPolicy: "Please give at least 24 hours' notice to cancel or reschedule. Appointments cancelled with less than 24 hours' notice, or missed, are charged the full appointment fee or, for prepaid visits, count as a used visit. If you need to cancel because of illness or an emergency, please call the office at (864) 558-7346.",
   businessHours: JSON.stringify({
     mon: ['08:00', '17:00'], tue: ['08:00', '17:00'], wed: ['08:00', '17:00'], thu: ['08:00', '17:00'],
     fri: ['08:00', '16:00'], sat: null, sun: null,
@@ -182,6 +182,7 @@ test('PDF lists only that client\'s open future appointments, in order', () => {
   assert.match(text, /3 upcoming appointments\. If anything looks wrong, please call us at 555-0100\./);
   assert.match(text, /Cancellation policy\s+Please give at least 24 hours' notice/);
   assert.match(text, /count as a used visit\./);
+  assert.match(text, /illness or an emergency, please call\s+the office/);
 
   const [live] = build({ input: rows, nodes: { 'Keep due': due }, now: T0, settings: { ...SETTINGS, mode: 'live' } });
   assert.equal(live.uploadTo, 7);
