@@ -1,2 +1,5 @@
-avatar_id=efc9612640a7499686b81bfd22be9f73
+# Default for Meta ads (9:16): render meta_ad_look_id with engine avatar_v,
+# using twin_avatar_id as engine.reference_look_id
+meta_ad_look_id=473e397c0a7e46929df318d400d2b4f2
+twin_avatar_id=efc9612640a7499686b81bfd22be9f73
 voice_id=57c4d5fe213940d1b4394b052311dfdf
