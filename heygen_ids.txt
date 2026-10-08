@@ -1,0 +1,2 @@
+avatar_id=efc9612640a7499686b81bfd22be9f73
+voice_id=57c4d5fe213940d1b4394b052311dfdf
