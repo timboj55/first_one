@@ -145,7 +145,7 @@ Context:
 - Course link: the 40-mile-radius clinic examples show different creative to the same people "because we don't know what it is that it's going to make someone convert" (MC "Inside the Meta Ecosystem" [8:32]). Map-pin openers worked for that client (TEST "How small wins compound over time" [0:57]).
 
 ### CL-LOC-02: Size budget to the local audience; scale more slowly than the course's e-commerce examples
-- Do: Start inside the course's local range (£/$5–10 a day per local ad set per LOCAL/LG; the clinic case study used about $30 a day test ad sets). Raise budgets in the course's ≤ 15–20% steps (file 02). Stop raising when frequency rises faster than bookings.
+- Do: Start inside the course's local range (£/$5–10 a day per local ad set per LOCAL/LG; the clinic case study used about $30 a day test ad sets). Raise budgets in 10–15% steps every 2–3 days, the low end of the course's 10–20% range (file 02, R-SCL-02). Stop raising when frequency rises faster than bookings.
 - Do: Treat the radius as fixed by real travel time to the clinic, not stretched to find more audience. Leads who won't travel don't show (CL-KPI-01).
 - Don't: Apply the course's scaling examples ($150/day e-commerce, $2,000+/week clinics) without checking audience size and frequency first.
 
