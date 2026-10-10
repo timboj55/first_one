@@ -1,6 +1,9 @@
 # Working with Tim (Movement Solutions)
 
 ## Standing instructions
+- **Request API access for anything you could do for Tim.** Whenever a task involves a service where an API, connector
+  or service account would let you do the work yourself instead of walking him through clicks, ask for that access
+  (and say exactly how to set it up), rather than defaulting to click-by-click instructions.
 - **Get the tools you need up front, and do as much as possible yourself.** At the start of a task, work out every
   connector, API, network domain, credential and browser capability it will need, and ask Tim for all of them in one
   go, so he isn't fixing access piecemeal halfway through.
