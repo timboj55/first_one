@@ -4,7 +4,7 @@ Lesson text from Nick Boddington's *The Ads Clinic* Skool classroom (https://www
 
 Pulled 98 of 184 lessons (pulled 2026-10-10).
 
-**Limits of this source.** The course is taught mainly on video. Skool had no transcripts attached to any lesson, and the video captions are hosted on a domain this environment cannot reach, so only the written lesson text is here. Many lessons are short summaries or video-only. Treat the playbook's rules as paraphrases of written lesson text; where the text is thin, the playbook says so.
+**Transcripts.** Skool attaches no written transcripts to these lessons, so the transcripts here are cleaned from the English closed captions of the Skool-hosted videos (80 of the 98 pulled lessons). They are auto-generated captions: filler and stutters removed, otherwise verbatim, so expect occasional mis-heard words (e.g. product names). Lessons whose video is a YouTube link, and text-only lessons, have no transcript. Videos themselves were not downloaded.
 
 ## Pulled
 

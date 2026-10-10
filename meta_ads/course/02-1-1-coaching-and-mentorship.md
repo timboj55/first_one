@@ -4,7 +4,7 @@ Course 2 of the Ads Clinic classroom (Nick Boddington). Course page: https://www
 
 > Want us to personally help scale your ads? Book a FREE Review Call with Nick.
 
-**Source note:** lesson text as published in Skool. The lessons are mostly video, and no transcripts were available (none attached in Skool; video captions not reachable from this environment), so the spoken content of the videos is **not** captured here. Images in lessons are omitted.
+**Source note:** lesson text as published in Skool, plus video transcripts cleaned from the English closed captions of Skool-hosted lesson videos (auto-generated captions: filler words and stutters removed, otherwise verbatim, so expect occasional mis-heard words). Lessons whose video is a YouTube link have no transcript. Images in lessons are omitted.
 
 ## Want us to personally help scale your ads?
 
